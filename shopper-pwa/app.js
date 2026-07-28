@@ -713,7 +713,7 @@ function escapeHtml(str) {
 
 // ─── SERVICE WORKER ───────────────────────────────────────
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js').then(reg => {
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(reg => {
     reg.update(); // check for a newer sw.js immediately instead of waiting
     reg.addEventListener('updatefound', () => {
       const newWorker = reg.installing;
