@@ -26,10 +26,50 @@ function saveAuth(token, user) {
   localStorage.setItem('ga_user', JSON.stringify(user));
 }
 
+// ─── SESSION PERSISTENCE ──────────────────────────────────
+// iOS/WKWebView can reload the page when returning from the native camera (a documented
+// platform quirk, not something we can prevent) — this wipes anything held only in memory,
+// which is exactly what was happening to State.currentSubmissionId. Persisting the active
+// task/submission to localStorage lets the app recover automatically instead of losing the
+// in-progress task entirely.
+function saveSession() {
+  if (State.currentObject && State.currentTask && State.currentSubmissionId) {
+    localStorage.setItem('ga_session', JSON.stringify({
+      object: State.currentObject,
+      task: State.currentTask,
+      submissionId: State.currentSubmissionId,
+      hubProgress: State.hubProgress
+    }));
+  }
+}
+
+function clearSession() {
+  localStorage.removeItem('ga_session');
+}
+
+function restoreSession() {
+  try {
+    const raw = localStorage.getItem('ga_session');
+    if (!raw) return false;
+    const s = JSON.parse(raw);
+    if (!s.object || !s.task || !s.submissionId) return false;
+    State.currentObject = s.object;
+    State.currentTask = s.task;
+    State.currentSubmissionId = s.submissionId;
+    State.hubProgress = s.hubProgress || {};
+    Router.show('hub');
+    renderHub();
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
 function doLogout() {
   if (!confirm('Вийти з акаунту ' + (State.user?.first_name || '') + '?')) return;
   localStorage.removeItem('ga_token');
   localStorage.removeItem('ga_user');
+  clearSession();
   State.token = null;
   State.user = null;
   document.getElementById('login-input').value = '';
@@ -249,6 +289,7 @@ const Task = {
         return;
       }
       State.currentSubmissionId = task.submission_id;
+      saveSession();
       Router.show('hub');
       renderHub();
     } else {
@@ -300,6 +341,7 @@ document.getElementById('btn-geo-confirm').addEventListener('click', async () =>
 
       if (data.success) {
         State.currentSubmissionId = data.submission_id;
+        saveSession();
         document.getElementById('geo-distance').textContent = `~${data.distance_to_object_m} м`;
         document.getElementById('geo-distance').classList.add('ok');
         Router.show('hub');
@@ -389,6 +431,7 @@ document.getElementById('btn-hub-submit').addEventListener('click', async () => 
   btn.innerHTML = 'Відправити на перевірку';
 
   if (data.success) {
+    clearSession();
     Router.show('success');
   } else if (data.missing) {
     const parts = [];
@@ -476,6 +519,7 @@ const Photo = {
 
     if (allOk) {
       State.hubProgress[hubKey('photo', req.id)] = true;
+      saveSession();
       Router.show('hub');
       renderHub();
     }
@@ -581,6 +625,7 @@ const Audio = {
 
     if (data.success) {
       State.hubProgress[hubKey('audio', req.id)] = true;
+      saveSession();
       Router.show('hub');
       renderHub();
     } else {
@@ -702,6 +747,7 @@ const Quest = {
 
     if (data.success) {
       State.hubProgress[hubKey('quest', State.quest.questionnaireId)] = true;
+      saveSession();
       Router.show('hub');
       renderHub();
     } else {
@@ -741,6 +787,10 @@ if ('serviceWorker' in navigator) {
 // ─── INIT ─────────────────────────────────────────────────
 updateOnlineBanner();
 if (State.token && State.user) {
-  Router.show('objects');
-  Objects.load();
+  document.getElementById('user-avatar').textContent = (State.user?.first_name || '?')[0].toUpperCase();
+  const resumed = restoreSession();
+  if (!resumed) {
+    Router.show('objects');
+    Objects.load();
+  }
 }
