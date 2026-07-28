@@ -107,10 +107,21 @@ document.getElementById('password-input').addEventListener('keydown', e => { if 
 const Objects = {
   async load() {
     document.getElementById('user-avatar').textContent = (State.user?.first_name || '?')[0].toUpperCase();
-    const { data } = await api('/ga/shopper/objects');
-    if (!data.success) return;
-    State.objects = data.objects;
-    this.render();
+    const list = document.getElementById('objects-list');
+    const empty = document.getElementById('objects-empty');
+    list.innerHTML = '<div class="card-sub" style="text-align:center;padding:20px 0">Завантаження…</div>';
+    empty.style.display = 'none';
+    try {
+      const { data } = await api('/ga/shopper/objects');
+      if (!data.success) {
+        list.innerHTML = `<div class="fm-alert show err">${escapeHtml(data.error || "Не вдалося завантажити об'єкти")}</div>`;
+        return;
+      }
+      State.objects = data.objects;
+      this.render();
+    } catch (e) {
+      list.innerHTML = `<div class="fm-alert show err">Немає з'єднання з сервером: ${escapeHtml(e.message)}</div>`;
+    }
   },
   render() {
     const list = document.getElementById('objects-list');
@@ -146,14 +157,23 @@ const Tasks = {
     State.currentObject = obj;
     document.getElementById('tasks-object-name').textContent = obj.object_name;
     Router.show('tasks');
-    const { data } = await api('/ga/shopper/tasks?object_id=' + obj.object_id);
-    if (!data.success) return;
-    State.tasks = data.tasks;
-    if (data.object_progress) {
-      document.getElementById('tasks-progress').textContent =
-        `${data.object_progress.completed_tasks}/${data.object_progress.total_tasks} виконано`;
+    const list = document.getElementById('tasks-list');
+    list.innerHTML = '<div class="card-sub" style="text-align:center;padding:20px 0">Завантаження…</div>';
+    try {
+      const { data } = await api('/ga/shopper/tasks?object_id=' + obj.object_id);
+      if (!data.success) {
+        list.innerHTML = `<div class="fm-alert show err">${escapeHtml(data.error || 'Не вдалося завантажити завдання')}</div>`;
+        return;
+      }
+      State.tasks = data.tasks;
+      if (data.object_progress) {
+        document.getElementById('tasks-progress').textContent =
+          `${data.object_progress.completed_tasks}/${data.object_progress.total_tasks} виконано`;
+      }
+      this.render();
+    } catch (e) {
+      list.innerHTML = `<div class="fm-alert show err">Немає з'єднання з сервером: ${escapeHtml(e.message)}</div>`;
     }
-    this.render();
   },
   render() {
     const list = document.getElementById('tasks-list');
