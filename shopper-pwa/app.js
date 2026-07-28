@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════
 
 const API_BASE = 'https://primary-production-4b93e.up.railway.app/webhook';
-const APP_VERSION = 'v8'; // bump this on every real code change — visible on screen bottom-right,
+const APP_VERSION = 'v9'; // bump this on every real code change — visible on screen bottom-right,
 // so it's possible to confirm at a glance whether a new deploy actually reached the device,
 // instead of asking "did you upload it?" every time.
 document.addEventListener('DOMContentLoaded', () => {
@@ -453,7 +453,7 @@ document.getElementById('btn-hub-submit').addEventListener('click', async () => 
     alertEl.textContent = `Не все заповнено: ${parts.join(', ')}. Заповніть пункти позначені «Нове» вище.`;
     alertEl.className = 'fm-alert show warn';
   } else {
-    alertEl.textContent = data.error || 'Сталася помилка';
+    alertEl.textContent = (data.error || 'Сталася помилка') + ` [debug: submission_id=${JSON.stringify(State.currentSubmissionId)}]`;
     alertEl.className = 'fm-alert show err';
   }
 });
@@ -523,7 +523,12 @@ const Photo = {
       if (comment) fd.append('comment', comment);
       fd.append('file', file);
       const { data } = await api('/ga/shopper/submit-photo', { method: 'POST', body: fd, isForm: true });
-      if (!data.success) { allOk = false; alertEl.textContent = data.error || 'Помилка завантаження'; alertEl.className = 'fm-alert show err'; break; }
+      if (!data.success) {
+        allOk = false;
+        alertEl.textContent = (data.error || 'Помилка завантаження') + ` [debug: client sent submission_id=${JSON.stringify(State.currentSubmissionId)}]`;
+        alertEl.className = 'fm-alert show err';
+        break;
+      }
     }
 
     btn.disabled = false;
@@ -642,7 +647,7 @@ const Audio = {
       renderHub();
     } else {
       const alertEl = document.getElementById('audio-alert');
-      alertEl.textContent = data.error || 'Помилка завантаження';
+      alertEl.textContent = (data.error || 'Помилка завантаження') + ` [debug: submission_id=${JSON.stringify(State.currentSubmissionId)}]`;
       alertEl.className = 'fm-alert show err';
     }
   }
@@ -766,7 +771,7 @@ const Quest = {
       Router.show('hub');
       renderHub();
       const alertEl = document.getElementById('hub-alert');
-      alertEl.textContent = data.error || 'Не вдалося зберегти анкету';
+      alertEl.textContent = (data.error || 'Не вдалося зберегти анкету') + ` [debug: submission_id=${JSON.stringify(State.currentSubmissionId)}]`;
       alertEl.className = 'fm-alert show err';
     }
   }
