@@ -236,10 +236,17 @@ const Task = {
     State.photoFiles = {};
 
     if (task.status === 'in_progress') {
-      // resume — submission already exists from a previous geo-check; we don't have a
-      // server-side "resume state" endpoint yet, so local progress starts fresh for this
-      // session. The user can still re-upload; server-side completeness is always the
-      // source of truth at Submit time.
+      // resume — a submission already exists for this task from a previous geo-check.
+      // ga-shopper-tasks now returns submission_id for exactly this reason (was missing
+      // before, which caused every subsequent photo/audio/answers call to fail validation).
+      if (!task.submission_id) {
+        document.getElementById('hub-alert').textContent = 'Не вдалося знайти submission для цього завдання. Спробуйте оновити список завдань.';
+        document.getElementById('hub-alert').className = 'fm-alert show err';
+        Router.show('hub');
+        renderHub();
+        return;
+      }
+      State.currentSubmissionId = task.submission_id;
       Router.show('hub');
       renderHub();
     } else {
