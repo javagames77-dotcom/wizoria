@@ -137,7 +137,12 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
     if (res.status === 200 && data.success) {
       localStorage.setItem('ga_token', data.token);
       localStorage.setItem('ga_user', JSON.stringify(data.user));
-      showAlert(`✓ Успішний вхід (${data.user.role}). Кабінет ще в розробці.`, 'ok');
+      if (data.user.role === 'admin') {
+        showAlert('✓ Успішний вхід. Перехід до Dashboard…', 'ok');
+        setTimeout(() => { window.location.href = 'dashboard.html'; }, 400);
+      } else {
+        showAlert(`✓ Успішний вхід (${data.user.role}). Кабінет для цієї ролі ще в розробці.`, 'ok');
+      }
     } else if (res.status === 403 && data.pending) {
       showAlert('⏳ ' + data.error, 'warn');
     } else if (res.status === 403) {
