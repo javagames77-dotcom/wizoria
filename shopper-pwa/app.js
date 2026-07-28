@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════
 
 const API_BASE = 'https://primary-production-4b93e.up.railway.app/webhook';
-const APP_VERSION = 'v10'; // bump this on every real code change — visible on screen bottom-right,
+const APP_VERSION = 'v11'; // bump this on every real code change — visible on screen bottom-right,
 // so it's possible to confirm at a glance whether a new deploy actually reached the device,
 // instead of asking "did you upload it?" every time.
 document.addEventListener('DOMContentLoaded', () => {
@@ -453,7 +453,7 @@ document.getElementById('btn-hub-submit').addEventListener('click', async () => 
     alertEl.textContent = `Не все заповнено: ${parts.join(', ')}. Заповніть пункти позначені «Нове» вище.`;
     alertEl.className = 'fm-alert show warn';
   } else {
-    alertEl.textContent = (data.error || 'Сталася помилка') + ` [debug: submission_id=${JSON.stringify(State.currentSubmissionId)}]`;
+    alertEl.textContent = data.error || 'Сталася помилка';
     alertEl.className = 'fm-alert show err';
   }
 });
@@ -517,17 +517,20 @@ const Photo = {
     const comment = document.getElementById('photo-comment').value.trim();
     let allOk = true;
     for (const file of files) {
-      const fd = new FormData();
-      fd.append('file', file);
-      const params = new URLSearchParams({
-        submission_id: State.currentSubmissionId,
-        photo_requirement_id: req.id
+      const base64 = await fileToBase64(file);
+      const { data } = await api('/ga/shopper/submit-photo', {
+        method: 'POST',
+        body: {
+          submission_id: State.currentSubmissionId,
+          photo_requirement_id: req.id,
+          comment: comment || undefined,
+          file_base64: base64,
+          mime_type: file.type
+        }
       });
-      if (comment) params.set('comment', comment);
-      const { data } = await api('/ga/shopper/submit-photo?' + params.toString(), { method: 'POST', body: fd, isForm: true });
       if (!data.success) {
         allOk = false;
-        alertEl.textContent = (data.error || 'Помилка завантаження') + ` [debug: client sent submission_id=${JSON.stringify(State.currentSubmissionId)}]`;
+        alertEl.textContent = data.error || 'Помилка завантаження';
         alertEl.className = 'fm-alert show err';
         break;
       }
@@ -632,15 +635,19 @@ const Audio = {
     btn.disabled = true;
     btn.innerHTML = '<span class="loading-spin"></span>';
 
-    const fd = new FormData();
-    fd.append('file', this.blob, 'audio.' + (this.blob.type.includes('mp4') ? 'mp4' : 'webm'));
-    const params = new URLSearchParams({
-      submission_id: State.currentSubmissionId,
-      audio_requirement_id: req.id,
-      duration_sec: this.duration
-    });
+    const audioBase64 = await fileToBase64(this.blob);
+    const audioMime = this.blob.type || 'audio/webm';
 
-    const { data } = await api('/ga/shopper/submit-audio?' + params.toString(), { method: 'POST', body: fd, isForm: true });
+    const { data } = await api('/ga/shopper/submit-audio', {
+      method: 'POST',
+      body: {
+        submission_id: State.currentSubmissionId,
+        audio_requirement_id: req.id,
+        duration_sec: this.duration,
+        file_base64: audioBase64,
+        mime_type: audioMime
+      }
+    });
     btn.disabled = false;
     btn.innerHTML = 'Зберегти <i class="ti ti-arrow-right" aria-hidden="true"></i>';
 
@@ -651,7 +658,7 @@ const Audio = {
       renderHub();
     } else {
       const alertEl = document.getElementById('audio-alert');
-      alertEl.textContent = (data.error || 'Помилка завантаження') + ` [debug: submission_id=${JSON.stringify(State.currentSubmissionId)}]`;
+      alertEl.textContent = data.error || 'Помилка завантаження';
       alertEl.className = 'fm-alert show err';
     }
   }
@@ -775,7 +782,7 @@ const Quest = {
       Router.show('hub');
       renderHub();
       const alertEl = document.getElementById('hub-alert');
-      alertEl.textContent = (data.error || 'Не вдалося зберегти анкету') + ` [debug: submission_id=${JSON.stringify(State.currentSubmissionId)}]`;
+      alertEl.textContent = data.error || 'Не вдалося зберегти анкету';
       alertEl.className = 'fm-alert show err';
     }
   }
@@ -790,6 +797,15 @@ document.getElementById('btn-q-next').addEventListener('click', () => {
 function escapeHtml(str) {
   if (str === null || str === undefined) return '';
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 // ─── SERVICE WORKER ───────────────────────────────────────
