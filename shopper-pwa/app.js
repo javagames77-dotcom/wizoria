@@ -234,16 +234,18 @@ const Task = {
     State.currentTask = task;
     State.hubProgress = {};
     State.photoFiles = {};
+    State.currentSubmissionId = null; // always clear first — never let a stale id from a
+    // previously opened task leak into this one if something below fails to set a fresh one
 
     if (task.status === 'in_progress') {
       // resume — a submission already exists for this task from a previous geo-check.
       // ga-shopper-tasks now returns submission_id for exactly this reason (was missing
       // before, which caused every subsequent photo/audio/answers call to fail validation).
       if (!task.submission_id) {
-        document.getElementById('hub-alert').textContent = 'Не вдалося знайти submission для цього завдання. Спробуйте оновити список завдань.';
-        document.getElementById('hub-alert').className = 'fm-alert show err';
         Router.show('hub');
-        renderHub();
+        renderHub(); // renders with no working buttons — see the guard inside renderHub itself
+        document.getElementById('hub-alert').textContent = 'Не вдалося знайти submission для цього завдання. Поверніться до списку завдань і спробуйте ще раз.';
+        document.getElementById('hub-alert').className = 'fm-alert show err';
         return;
       }
       State.currentSubmissionId = task.submission_id;
@@ -333,24 +335,29 @@ function renderHub() {
   const list = document.getElementById('hub-list');
   list.innerHTML = '';
 
+  const blocked = !State.currentSubmissionId;
+  const guard = (fn) => blocked ? (() => {}) : fn;
+
   t.photo_requirements.forEach(r => {
     const key = hubKey('photo', r.id);
     const done = !!State.hubProgress[key];
-    list.appendChild(hubRow('photo', r.title, `${r.required_count} фото`, done, () => Photo.open(r)));
+    list.appendChild(hubRow('photo', r.title, `${r.required_count} фото`, done, guard(() => Photo.open(r)), blocked));
   });
   t.audio_requirements.forEach(r => {
     const key = hubKey('audio', r.id);
     const done = !!State.hubProgress[key];
-    list.appendChild(hubRow('audio', r.title, `Мін. ${r.min_duration_sec} сек`, done, () => Audio.open(r)));
+    list.appendChild(hubRow('audio', r.title, `Мін. ${r.min_duration_sec} сек`, done, guard(() => Audio.open(r)), blocked));
   });
   t.questionnaires.forEach(r => {
     const key = hubKey('quest', r.questionnaire_id);
     const done = !!State.hubProgress[key];
-    list.appendChild(hubRow('quest', r.title, `${r.criteria_count} питань`, done, () => Quest.open(r)));
+    list.appendChild(hubRow('quest', r.title, `${r.criteria_count} питань`, done, guard(() => Quest.open(r)), blocked));
   });
+
+  document.getElementById('btn-hub-submit').disabled = blocked;
 }
 
-function hubRow(kind, title, sub, done, onClick) {
+function hubRow(kind, title, sub, done, onClick, blocked = false) {
   const icons = { photo: 'ti-camera', audio: 'ti-microphone', quest: 'ti-clipboard-check' };
   const card = document.createElement('div');
   card.className = 'card' + (done ? '' : ' highlight');
@@ -360,7 +367,7 @@ function hubRow(kind, title, sub, done, onClick) {
       <div class="req-info"><div class="t">${escapeHtml(title)}</div><div class="s">${escapeHtml(sub)}</div></div>
       <span class="badge ${done ? 'success' : 'accent'}">${done ? 'Готово' : 'Нове'}</span>
     </div>
-    ${done ? '' : `<button class="fm-btn sm" type="button">Виконати <i class="ti ti-arrow-right" aria-hidden="true"></i></button>`}
+    ${done ? '' : `<button class="fm-btn sm" type="button" ${blocked ? 'disabled' : ''}>Виконати <i class="ti ti-arrow-right" aria-hidden="true"></i></button>`}
   `;
   if (!done) card.querySelector('button').addEventListener('click', onClick);
   return card;
@@ -722,15 +729,12 @@ function escapeHtml(str) {
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(reg => {
     reg.update(); // check for a newer sw.js immediately instead of waiting
-    reg.addEventListener('updatefound', () => {
-      const newWorker = reg.installing;
-      newWorker.addEventListener('statechange', () => {
-        if (newWorker.state === 'activated') {
-          // a newer version just took over — reload once so the fresh app.js/index.html apply
-          window.location.reload();
-        }
-      });
-    });
+    // NOTE: deliberately NOT auto-reloading on activation anymore — an earlier version of
+    // this did `window.location.reload()` here, which could fire mid-task (e.g. right as
+    // the SW installs for the first time in a fresh/private context) and silently wipe
+    // in-memory state like State.currentSubmissionId. That's worse than a stale cache.
+    // Instead, just let the already-fixed network-first fetch handler keep things current;
+    // no forced reload is needed for updates to take effect on next natural navigation.
   }).catch(e => console.warn('SW registration failed', e));
 }
 
