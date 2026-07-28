@@ -3,6 +3,18 @@
 // ═══════════════════════════════════════════════════════════
 
 const API_BASE = 'https://primary-production-4b93e.up.railway.app/webhook';
+const APP_VERSION = 'v8'; // bump this on every real code change — visible on screen bottom-right,
+// so it's possible to confirm at a glance whether a new deploy actually reached the device,
+// instead of asking "did you upload it?" every time.
+document.addEventListener('DOMContentLoaded', () => {
+  const el = document.getElementById('app-version');
+  if (el) el.textContent = APP_VERSION;
+});
+// also set it immediately in case DOMContentLoaded already fired by the time this script runs
+if (document.readyState !== 'loading') {
+  const el = document.getElementById('app-version');
+  if (el) el.textContent = APP_VERSION;
+}
 
 // ─── STATE ────────────────────────────────────────────────
 const State = {
