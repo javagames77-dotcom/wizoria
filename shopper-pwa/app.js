@@ -26,6 +26,17 @@ function saveAuth(token, user) {
   localStorage.setItem('ga_user', JSON.stringify(user));
 }
 
+function doLogout() {
+  if (!confirm('Вийти з акаунту ' + (State.user?.first_name || '') + '?')) return;
+  localStorage.removeItem('ga_token');
+  localStorage.removeItem('ga_user');
+  State.token = null;
+  State.user = null;
+  document.getElementById('login-input').value = '';
+  document.getElementById('password-input').value = '';
+  Router.show('login');
+}
+
 // ─── API HELPER ───────────────────────────────────────────
 async function api(path, { method = 'GET', body = null, isForm = false } = {}) {
   const headers = {};
@@ -114,7 +125,8 @@ const Objects = {
     try {
       const { data } = await api('/ga/shopper/objects');
       if (!data.success) {
-        list.innerHTML = `<div class="fm-alert show err">${escapeHtml(data.error || "Не вдалося завантажити об'єкти")}</div>`;
+        list.innerHTML = `<div class="fm-alert show err">${escapeHtml(data.error || "Не вдалося завантажити об'єкти")}</div>
+          <button class="fm-btn outline sm" style="margin-top:10px" onclick="doLogout()">Вийти з акаунту</button>`;
         return;
       }
       State.objects = data.objects;

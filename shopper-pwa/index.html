@@ -59,7 +59,7 @@ body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var
 
 .topbar{
   position:sticky;top:0;z-index:50;background:var(--bg2);border-bottom:1px solid var(--border);
-  padding:14px 16px;display:flex;align-items:center;gap:10px;min-height:52px;
+  padding:calc(14px + env(safe-area-inset-top)) 16px 14px;display:flex;align-items:center;gap:10px;min-height:52px;
 }
 .topbar .back{font-size:13px;color:var(--accent);display:flex;align-items:center;gap:4px;cursor:pointer;background:none;border:none;font-family:inherit}
 .topbar .ttl{font-size:14px;font-weight:600;color:var(--black);flex:1}
@@ -72,7 +72,8 @@ body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var
 }
 .online-banner.show{display:flex}
 
-main{flex:1;padding:16px;display:flex;flex-direction:column}
+main{flex:1;padding:16px;padding-top:calc(16px + env(safe-area-inset-top));display:flex;flex-direction:column}
+.topbar + main{padding-top:16px}
 .screen{display:none;flex:1;flex-direction:column}
 .screen.active{display:flex}
 
@@ -216,7 +217,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
   <section class="screen" id="screen-objects">
     <div class="topbar">
       <div class="ttl">Мої об'єкти</div>
-      <div class="avatar" id="user-avatar">?</div>
+      <div class="avatar" id="user-avatar" onclick="doLogout()" style="cursor:pointer" title="Вийти з акаунту">?</div>
     </div>
     <main>
       <div class="section-label" style="text-transform:none;font-weight:400;color:var(--muted);letter-spacing:0">Оберіть кінотеатр</div>
