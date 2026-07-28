@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════
 
 const API_BASE = 'https://primary-production-4b93e.up.railway.app/webhook';
-const APP_VERSION = 'v9'; // bump this on every real code change — visible on screen bottom-right,
+const APP_VERSION = 'v10'; // bump this on every real code change — visible on screen bottom-right,
 // so it's possible to confirm at a glance whether a new deploy actually reached the device,
 // instead of asking "did you upload it?" every time.
 document.addEventListener('DOMContentLoaded', () => {
@@ -518,11 +518,13 @@ const Photo = {
     let allOk = true;
     for (const file of files) {
       const fd = new FormData();
-      fd.append('submission_id', State.currentSubmissionId);
-      fd.append('photo_requirement_id', req.id);
-      if (comment) fd.append('comment', comment);
       fd.append('file', file);
-      const { data } = await api('/ga/shopper/submit-photo', { method: 'POST', body: fd, isForm: true });
+      const params = new URLSearchParams({
+        submission_id: State.currentSubmissionId,
+        photo_requirement_id: req.id
+      });
+      if (comment) params.set('comment', comment);
+      const { data } = await api('/ga/shopper/submit-photo?' + params.toString(), { method: 'POST', body: fd, isForm: true });
       if (!data.success) {
         allOk = false;
         alertEl.textContent = (data.error || 'Помилка завантаження') + ` [debug: client sent submission_id=${JSON.stringify(State.currentSubmissionId)}]`;
@@ -631,12 +633,14 @@ const Audio = {
     btn.innerHTML = '<span class="loading-spin"></span>';
 
     const fd = new FormData();
-    fd.append('submission_id', State.currentSubmissionId);
-    fd.append('audio_requirement_id', req.id);
-    fd.append('duration_sec', this.duration);
     fd.append('file', this.blob, 'audio.' + (this.blob.type.includes('mp4') ? 'mp4' : 'webm'));
+    const params = new URLSearchParams({
+      submission_id: State.currentSubmissionId,
+      audio_requirement_id: req.id,
+      duration_sec: this.duration
+    });
 
-    const { data } = await api('/ga/shopper/submit-audio', { method: 'POST', body: fd, isForm: true });
+    const { data } = await api('/ga/shopper/submit-audio?' + params.toString(), { method: 'POST', body: fd, isForm: true });
     btn.disabled = false;
     btn.innerHTML = 'Зберегти <i class="ti ti-arrow-right" aria-hidden="true"></i>';
 
