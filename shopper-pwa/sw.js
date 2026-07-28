@@ -2,7 +2,7 @@
 // GhostAudit / Wizoria — Shopper PWA Service Worker
 // ═══════════════════════════════════════════════════════════
 
-const CACHE_NAME = 'ga-shopper-v1';
+const CACHE_NAME = 'ga-shopper-v2';
 const APP_SHELL = [
   './index.html',
   './app.js',
@@ -26,11 +26,14 @@ self.addEventListener('activate', (event) => {
 });
 
 // ─── FETCH ──────────────────────────────────────────────────
-// App shell (same-origin, non-API) → cache-first, so the interface itself works offline.
-// API calls (n8n webhook) → always network; the anketa/photo/audio screens keep collected
-// data in memory until connectivity returns, per ТЗ ("Анкета заповнюється без інтернету.
-// Синхронізація при підключенні") — actual background sync queue is a follow-up, not yet
-// wired into this first version.
+// App shell (index.html/app.js/manifest.json) → NETWORK-FIRST.
+// This project is under active development: cache-first would silently keep
+// serving an old, already-cached version of the app forever, even after the
+// files are updated on the server — exactly the bug that cost real time to
+// track down. Network-first always tries to fetch the latest file first, and
+// only falls back to the cached copy if there's no connection at all, which
+// still satisfies the offline requirement without freezing updates.
+// API calls (n8n webhook) → always network, same as before.
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   const isApiCall = url.hostname !== self.location.hostname;
@@ -46,7 +49,14 @@ self.addEventListener('fetch', (event) => {
   }
 
   event.respondWith(
-    caches.match(event.request).then(cached => cached || fetch(event.request))
+    fetch(event.request)
+      .then(res => {
+        // keep the cache fresh with whatever we just fetched, for offline fallback
+        const resClone = res.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put(event.request, resClone));
+        return res;
+      })
+      .catch(() => caches.match(event.request))
   );
 });
 

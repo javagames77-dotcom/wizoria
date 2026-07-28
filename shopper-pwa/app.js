@@ -701,7 +701,18 @@ function escapeHtml(str) {
 
 // ─── SERVICE WORKER ───────────────────────────────────────
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js').catch(e => console.warn('SW registration failed', e));
+  navigator.serviceWorker.register('sw.js').then(reg => {
+    reg.update(); // check for a newer sw.js immediately instead of waiting
+    reg.addEventListener('updatefound', () => {
+      const newWorker = reg.installing;
+      newWorker.addEventListener('statechange', () => {
+        if (newWorker.state === 'activated') {
+          // a newer version just took over — reload once so the fresh app.js/index.html apply
+          window.location.reload();
+        }
+      });
+    });
+  }).catch(e => console.warn('SW registration failed', e));
 }
 
 // ─── INIT ─────────────────────────────────────────────────
