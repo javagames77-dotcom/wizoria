@@ -2,10 +2,10 @@
 // GhostAudit / Wizoria — Shopper PWA Service Worker
 // ═══════════════════════════════════════════════════════════
 
-const CACHE_NAME = 'ga-shopper-v13';
+const CACHE_NAME = 'ga-shopper-v14';
 const APP_SHELL = [
   './index.html',
-  './app.js?v=13',
+  './app.js?v=14',
   './manifest.json'
 ];
 
@@ -42,7 +42,9 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(event.request).catch(() => new Response(
         JSON.stringify({ success: false, error: "Немає з'єднання з сервером" }),
-        { status: 503, headers: { 'Content-Type': 'application/json' } }
+        // X-GA-Offline: 1 — маркер саме для app.js: дає змогу відрізнити "сервер сам
+        // відповів 503" від "мережі реально нема", не покладаючись на текст помилки
+        { status: 503, headers: { 'Content-Type': 'application/json', 'X-GA-Offline': '1' } }
       ))
     );
     return;
