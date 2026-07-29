@@ -11,6 +11,8 @@
 <link rel="manifest" href="manifest.json">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 :root {
   --accent: #8C64C9;
@@ -132,7 +134,8 @@ main{flex:1;padding:16px;padding-top:calc(16px + env(safe-area-inset-top));displ
 .section-label{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);margin-bottom:10px}
 
 /* ── GEO SCREEN ── */
-.map-box{height:160px;border-radius:12px;background:var(--bg3);border:1px solid var(--border);margin-bottom:14px;position:relative;overflow:hidden}
+.map-box{height:200px;border-radius:12px;background:var(--bg3);border:1px solid var(--border);margin-bottom:14px;position:relative;overflow:hidden;z-index:0}
+.map-box .leaflet-pane,.map-box .leaflet-control{z-index:1}
 .geo-info{border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:14px}
 .geo-info-row{display:flex;justify-content:space-between;padding:10px 13px;border-bottom:1px solid var(--border);font-size:13px}
 .geo-info-row:last-child{border-bottom:none}
@@ -259,11 +262,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
         <div style="font-size:16px;font-weight:600;color:var(--black);margin-bottom:2px" id="geo-object-name"></div>
         <div class="card-sub">Підтвердіть присутність</div>
       </div>
-      <div class="map-box" id="geo-map">
-        <div style="position:absolute;inset:0;opacity:.06;background:repeating-linear-gradient(0deg,transparent,transparent 14px,var(--text) 14px,var(--text) 14.5px),repeating-linear-gradient(90deg,transparent,transparent 14px,var(--text) 14px,var(--text) 14.5px)"></div>
-        <div style="position:absolute;top:33%;left:40%;width:24px;height:16px;background:var(--accent-light);border:1px solid var(--accent);border-radius:3px"></div>
-        <div style="position:absolute;top:36%;left:43%;width:13px;height:13px;border-radius:50%;background:var(--accent);border:2px solid var(--bg2);box-shadow:0 0 0 4px var(--accent-light)"></div>
-      </div>
+      <div class="map-box" id="geo-map"></div>
       <div class="geo-info">
         <div class="geo-info-row"><span class="k">Метод</span><span class="v" id="geo-method">—</span></div>
         <div class="geo-info-row"><span class="k">Точність</span><span class="v" id="geo-accuracy">—</span></div>
@@ -366,6 +365,6 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
 
 </div>
 
-<script src="app.js?v=12"></script>
+<script src="app.js?v=13"></script>
 </body>
 </html>
