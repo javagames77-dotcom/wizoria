@@ -3,7 +3,10 @@
 // ═══════════════════════════════════════════════════════════
 
 const API_BASE = 'https://primary-production-4b93e.up.railway.app/webhook';
-const APP_VERSION = 'v14'; // bump this on every real code change — visible on screen bottom-right,
+// VAPID public key (той самой пары, что сгенерирована для проекта) — публичный, безопасно
+// держать прямо в клиентском коде, приватный остаётся только в n8n
+const VAPID_PUBLIC_KEY = 'BNnz-jdGhB2nz3Meh4yN4A6-VageQqYiQFX_BLpSBjhWxFCrOQ4Sq491vMVVp8qbUTXNHoF4AnfW6L9dJCmSjgE';
+const APP_VERSION = 'v15'; // bump this on every real code change — visible on screen bottom-right,
 // so it's possible to confirm at a glance whether a new deploy actually reached the device,
 // instead of asking "did you upload it?" every time.
 document.addEventListener('DOMContentLoaded', () => {
@@ -312,6 +315,7 @@ async function doLogin() {
       saveAuth(data.token, data.user);
       Router.show('objects');
       Objects.load();
+      PushSetup.init();
     } else {
       alertEl.textContent = data.error || 'Не вдалося увійти';
       alertEl.classList.add('show');
@@ -1144,6 +1148,49 @@ function formatMMSS(totalSeconds) {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
+// ─── PUSH SUBSCRIBE ────────────────────────────────────────
+// Клієнтська частина push (permission + показ) вже була готова в sw.js — тут лише
+// не вистачало підписки: попросити дозвіл, отримати PushSubscription від браузера і
+// віддати її на сервер, щоб n8n знав, куди слати push при новому завданні.
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  const output = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; i++) output[i] = rawData.charCodeAt(i);
+  return output;
+}
+
+const PushSetup = {
+  async init() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return; // iOS <16.4 у Safari-вкладці, наприклад
+    if (Notification.permission === 'denied') return; // не набридаємо повторним запитом
+
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      let sub = await reg.pushManager.getSubscription();
+
+      if (!sub) {
+        if (Notification.permission === 'default') {
+          const perm = await Notification.requestPermission();
+          if (perm !== 'granted') return;
+        }
+        if (Notification.permission !== 'granted') return;
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+        });
+      }
+
+      // Шлемо щоразу (навіть якщо підписка вже була) — це просто UPSERT на сервері,
+      // ідемпотентно, і підстраховує на випадок якщо попередня спроба відправки не дійшла
+      await api('/ga/shopper/push-subscribe', { method: 'POST', body: sub.toJSON() });
+    } catch (e) {
+      console.warn('Push subscribe failed', e); // не критично для роботи застосунку — просто не буде push
+    }
+  }
+};
+
 // ─── SERVICE WORKER ───────────────────────────────────────
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(reg => {
@@ -1166,4 +1213,5 @@ if (State.token && State.user) {
     Router.show('objects');
     Objects.load();
   }
+  PushSetup.init();
 }
