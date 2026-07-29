@@ -109,6 +109,7 @@ main{flex:1;padding:16px;padding-top:calc(16px + env(safe-area-inset-top));displ
 .card{border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;background:var(--bg2);cursor:pointer;transition:border-color .15s}
 .card.highlight{border-color:var(--accent);background:var(--accent-light)}
 .card.done{opacity:.6;cursor:default}
+#objects-list .card.done{opacity:.5}
 .card-row{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
 .card-title{font-size:14px;font-weight:500;color:var(--black)}
 .card-sub{font-size:12px;color:var(--muted)}
@@ -202,7 +203,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
       <div class="fm-title">Вхід до системи</div>
       <div class="fm-sub">Email або логін</div>
       <label class="fm-label" for="login-input">Email / логін</label>
-      <input class="fm-input" type="text" id="login-input" autocomplete="username" placeholder="ivan_petrov">
+      <input class="fm-input" type="text" id="login-input" autocomplete="username" placeholder="ivan@example.com">
       <div class="field-err" id="err-login"></div>
       <label class="fm-label" for="password-input">Пароль</label>
       <input class="fm-input" type="password" id="password-input" autocomplete="current-password" placeholder="••••••••">
@@ -210,6 +211,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
       <div class="fm-alert err" id="login-alert"></div>
       <div class="spacer" style="flex:0.3"></div>
       <button class="fm-btn" id="btn-login" type="button">Увійти</button>
+      <a class="fm-link" href="../register.html" style="text-decoration:none;display:block">Зареєструватись</a>
       <div class="spacer" style="flex:0.7"></div>
     </main>
   </section>
@@ -257,7 +259,11 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
         <div style="font-size:16px;font-weight:600;color:var(--black);margin-bottom:2px" id="geo-object-name"></div>
         <div class="card-sub">Підтвердіть присутність</div>
       </div>
-      <div class="map-box" id="geo-map"></div>
+      <div class="map-box" id="geo-map">
+        <div style="position:absolute;inset:0;opacity:.06;background:repeating-linear-gradient(0deg,transparent,transparent 14px,var(--text) 14px,var(--text) 14.5px),repeating-linear-gradient(90deg,transparent,transparent 14px,var(--text) 14px,var(--text) 14.5px)"></div>
+        <div style="position:absolute;top:33%;left:40%;width:24px;height:16px;background:var(--accent-light);border:1px solid var(--accent);border-radius:3px"></div>
+        <div style="position:absolute;top:36%;left:43%;width:13px;height:13px;border-radius:50%;background:var(--accent);border:2px solid var(--bg2);box-shadow:0 0 0 4px var(--accent-light)"></div>
+      </div>
       <div class="geo-info">
         <div class="geo-info-row"><span class="k">Метод</span><span class="v" id="geo-method">—</span></div>
         <div class="geo-info-row"><span class="k">Точність</span><span class="v" id="geo-accuracy">—</span></div>
@@ -266,7 +272,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
       </div>
       <div class="fm-alert" id="geo-alert"></div>
       <div class="spacer"></div>
-      <button class="fm-btn" id="btn-geo-confirm" type="button">Визначити місцезнаходження</button>
+      <button class="fm-btn" id="btn-geo-confirm" type="button" disabled>Підтвердити та перейти</button>
     </main>
   </section>
 
@@ -298,11 +304,11 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
       <div class="instr-box" id="photo-desc"></div>
       <div class="photo-grid" id="photo-grid"></div>
       <input type="file" accept="image/*" capture="environment" id="photo-file-input" style="display:none">
-      <label class="fm-label">Коментар (необов'язково)</label>
+      <label class="fm-label">Коментар</label>
       <textarea class="fm-input" id="photo-comment" placeholder="Загальний вигляд, стан приміщення..."></textarea>
       <div class="fm-alert" id="photo-alert"></div>
       <div class="spacer"></div>
-      <button class="fm-btn" id="btn-photo-back" type="button">Готово <i class="ti ti-arrow-right" aria-hidden="true"></i></button>
+      <button class="fm-btn" id="btn-photo-back" type="button">Зберегти <i class="ti ti-arrow-right" aria-hidden="true"></i></button>
     </main>
   </section>
 
@@ -360,6 +366,6 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
 
 </div>
 
-<script src="app.js?v=11"></script>
+<script src="app.js?v=12"></script>
 </body>
 </html>
