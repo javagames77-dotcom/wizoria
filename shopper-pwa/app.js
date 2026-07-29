@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════
 
 const API_BASE = 'https://primary-production-4b93e.up.railway.app/webhook';
-const APP_VERSION = 'v12'; // bump this on every real code change — visible on screen bottom-right,
+const APP_VERSION = 'v13'; // bump this on every real code change — visible on screen bottom-right,
 // so it's possible to confirm at a glance whether a new deploy actually reached the device,
 // instead of asking "did you upload it?" every time.
 document.addEventListener('DOMContentLoaded', () => {
@@ -338,7 +338,72 @@ function resetGeoScreen() {
   const btn = document.getElementById('btn-geo-confirm');
   btn.disabled = true;
   btn.innerHTML = '<span class="loading-spin"></span>';
+  initGeoMap();
   detectAndConfirmLocation();
+}
+
+// ─── LEAFLET MAP (object location + live user position) ──
+let geoMap = null;
+let geoObjectMarker = null;
+let geoUserMarker = null;
+let geoRadiusCircle = null;
+
+const accentDivIcon = (color) => L.divIcon({
+  className: '',
+  html: `<div style="width:13px;height:13px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 0 0 4px ${color}33"></div>`,
+  iconSize: [13, 13],
+  iconAnchor: [6, 6]
+});
+
+function initGeoMap() {
+  const obj = State.currentObject;
+  const container = document.getElementById('geo-map');
+  if (geoMap) { geoMap.remove(); geoMap = null; geoUserMarker = null; }
+
+  const hasCoords = obj && obj.latitude && obj.longitude;
+  const center = hasCoords ? [obj.latitude, obj.longitude] : [49.588, 34.551];
+
+  geoMap = L.map(container, { zoomControl: false, attributionControl: false }).setView(center, 17);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(geoMap);
+
+  if (hasCoords) {
+    geoObjectMarker = L.marker(center, { icon: accentDivIconSquare() }).addTo(geoMap);
+    if (obj.geo_radius_m) {
+      geoRadiusCircle = L.circle(center, {
+        radius: obj.geo_radius_m,
+        color: '#8C64C9',
+        weight: 1,
+        fillOpacity: 0.08
+      }).addTo(geoMap);
+    }
+  }
+
+  setTimeout(() => geoMap && geoMap.invalidateSize(), 150);
+}
+
+function accentDivIconSquare() {
+  return L.divIcon({
+    className: '',
+    html: `<div style="width:20px;height:14px;background:#8C64C933;border:1px solid #8C64C9;border-radius:3px"></div>`,
+    iconSize: [20, 14],
+    iconAnchor: [10, 7]
+  });
+}
+
+function updateUserMarkerOnMap(lat, lng) {
+  if (!geoMap) return;
+  if (geoUserMarker) {
+    geoUserMarker.setLatLng([lat, lng]);
+  } else {
+    geoUserMarker = L.marker([lat, lng], { icon: accentDivIcon('#8C64C9') }).addTo(geoMap);
+  }
+  const obj = State.currentObject;
+  if (obj && obj.latitude && obj.longitude) {
+    geoMap.fitBounds([[lat, lng], [obj.latitude, obj.longitude]], { padding: [24, 24], maxZoom: 18 });
+  } else {
+    geoMap.setView([lat, lng], 17);
+  }
+  setTimeout(() => geoMap && geoMap.invalidateSize(), 100);
 }
 
 let geoConfirmedAndReady = false;
@@ -356,6 +421,8 @@ function detectAndConfirmLocation() {
       const lng = pos.coords.longitude;
       const accuracy = Math.round(pos.coords.accuracy);
       const method = accuracy <= 30 ? 'gps' : (accuracy <= 100 ? 'wifi' : 'cell');
+
+      updateUserMarkerOnMap(lat, lng);
 
       document.getElementById('geo-method').textContent = method.toUpperCase();
       document.getElementById('geo-accuracy').textContent = `±${accuracy} м`;
