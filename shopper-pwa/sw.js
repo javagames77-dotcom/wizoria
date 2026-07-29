@@ -2,10 +2,10 @@
 // GhostAudit / Wizoria — Shopper PWA Service Worker
 // ═══════════════════════════════════════════════════════════
 
-const CACHE_NAME = 'ga-shopper-v14';
+const CACHE_NAME = 'ga-shopper-v15';
 const APP_SHELL = [
   './index.html',
-  './app.js?v=14',
+  './app.js?v=15',
   './manifest.json'
 ];
 
