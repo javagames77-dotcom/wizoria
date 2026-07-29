@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════
 
 const API_BASE = 'https://primary-production-4b93e.up.railway.app/webhook';
-const APP_VERSION = 'v11'; // bump this on every real code change — visible on screen bottom-right,
+const APP_VERSION = 'v12'; // bump this on every real code change — visible on screen bottom-right,
 // so it's possible to confirm at a glance whether a new deploy actually reached the device,
 // instead of asking "did you upload it?" every time.
 document.addEventListener('DOMContentLoaded', () => {
@@ -27,7 +27,7 @@ const State = {
   currentSubmissionId: null,
   hubProgress: {},          // { [key]: true } local tracking of what's done this session
   currentReq: null,         // currently open photo/audio requirement
-  photoFiles: {},           // { [requirementId]: [File, File...] } collected before "Готово"
+  photoFiles: {},           // { [requirementId]: [File, File...] } collected before "Зберегти"
   quest: null,              // { questionnaireId, criteria: [...], answers: {}, idx: 0, visibleList: [...] }
 };
 
@@ -194,21 +194,36 @@ const Objects = {
     if (State.objects.length === 0) { empty.style.display = 'block'; return; }
     empty.style.display = 'none';
 
+    let firstActiveSeen = false;
+
     State.objects.forEach(o => {
       const card = document.createElement('div');
-      card.className = 'card' + (o.all_done ? ' done' : (o.remaining_tasks > 0 ? ' highlight' : ''));
-      const badge = o.all_done
-        ? `<span class="badge success">Здано</span>`
-        : `<span class="badge accent">${o.remaining_tasks} завд.</span>`;
-      card.innerHTML = `
-        <div class="card-row">
-          <div class="card-title">${escapeHtml(o.object_name)}</div>
-          ${badge}
-        </div>
-        <div class="card-sub">${escapeHtml(o.city || o.address || '')}</div>
-      `;
-      if (!o.all_done) {
-        card.addEventListener('click', () => Tasks.open(o));
+
+      if (o.all_done) {
+        card.className = 'card done';
+        card.innerHTML = `
+          <div class="card-row" style="margin-bottom:0">
+            <div class="card-title">${escapeHtml(o.object_name)}</div>
+            <span class="badge success">Здано</span>
+          </div>
+        `;
+      } else {
+        const isPrimary = !firstActiveSeen;
+        firstActiveSeen = true;
+        card.className = 'card' + (isPrimary ? ' highlight' : '');
+        card.innerHTML = `
+          <div class="card-row">
+            <div class="card-title">${escapeHtml(o.object_name)}</div>
+            <span class="badge ${isPrimary ? 'accent' : 'warn'}">${o.remaining_tasks} завд.</span>
+          </div>
+          <div class="card-sub"${isPrimary ? ' style="margin-bottom:6px"' : ''}>${escapeHtml(o.city || o.address || '')}</div>
+          ${isPrimary ? `<button class="fm-btn sm" type="button" style="width:100%">Перейти <i class="ti ti-arrow-right" aria-hidden="true"></i></button>` : ''}
+        `;
+        const navigate = () => Tasks.open(o);
+        if (isPrimary) {
+          card.querySelector('button').addEventListener('click', (e) => { e.stopPropagation(); navigate(); });
+        }
+        card.addEventListener('click', navigate);
       }
       list.appendChild(card);
     });
@@ -317,19 +332,19 @@ function resetGeoScreen() {
   document.getElementById('geo-method').textContent = '—';
   document.getElementById('geo-accuracy').textContent = '—';
   document.getElementById('geo-distance').textContent = '—';
+  document.getElementById('geo-distance').classList.remove('ok');
   document.getElementById('geo-time').textContent = '—';
   document.getElementById('geo-alert').classList.remove('show');
   const btn = document.getElementById('btn-geo-confirm');
-  btn.disabled = false;
-  btn.textContent = 'Визначити місцезнаходження';
-}
-
-document.getElementById('btn-geo-confirm').addEventListener('click', async () => {
-  const btn = document.getElementById('btn-geo-confirm');
   btn.disabled = true;
   btn.innerHTML = '<span class="loading-spin"></span>';
-  document.getElementById('geo-alert').classList.remove('show');
+  detectAndConfirmLocation();
+}
 
+let geoConfirmedAndReady = false;
+
+function detectAndConfirmLocation() {
+  geoConfirmedAndReady = false;
   if (!('geolocation' in navigator)) {
     showGeoError("Геолокація не підтримується цим браузером");
     return;
@@ -354,10 +369,12 @@ document.getElementById('btn-geo-confirm').addEventListener('click', async () =>
       if (data.success) {
         State.currentSubmissionId = data.submission_id;
         saveSession();
-        document.getElementById('geo-distance').textContent = `~${data.distance_to_object_m} м`;
+        document.getElementById('geo-distance').innerHTML = `~${data.distance_to_object_m} м <i class="ti ti-check" aria-hidden="true"></i>`;
         document.getElementById('geo-distance').classList.add('ok');
-        Router.show('hub');
-        renderHub();
+        geoConfirmedAndReady = true;
+        const btn = document.getElementById('btn-geo-confirm');
+        btn.disabled = false;
+        btn.textContent = 'Підтвердити та перейти';
       } else if (data.reason === 'too_far') {
         document.getElementById('geo-distance').textContent = `~${data.distance_to_object_m} м`;
         showGeoError(`Ви задалеко від об'єкту (потрібно бути ближче ${data.geo_radius_m} м). Підійдіть ближче і спробуйте ще раз.`, 'warn');
@@ -368,6 +385,21 @@ document.getElementById('btn-geo-confirm').addEventListener('click', async () =>
     (err) => showGeoError('Не вдалося визначити місцезнаходження: ' + err.message),
     { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
   );
+}
+
+document.getElementById('btn-geo-confirm').addEventListener('click', () => {
+  if (geoConfirmedAndReady) {
+    // location already confirmed server-side during auto-detection — this tap just proceeds
+    Router.show('hub');
+    renderHub();
+  } else {
+    // "Спробувати ще раз" state (auto-detect failed or was too far) — retry detection
+    const btn = document.getElementById('btn-geo-confirm');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loading-spin"></span>';
+    document.getElementById('geo-alert').classList.remove('show');
+    detectAndConfirmLocation();
+  }
 });
 
 function showGeoError(msg, cls = 'err') {
@@ -391,37 +423,52 @@ function renderHub() {
 
   const blocked = !State.currentSubmissionId;
   const guard = (fn) => blocked ? (() => {}) : fn;
+  let firstPendingSeen = false;
 
   t.photo_requirements.forEach(r => {
     const key = hubKey('photo', r.id);
     const done = !!State.hubProgress[key];
-    list.appendChild(hubRow('photo', r.title, `${r.required_count} фото`, done, guard(() => Photo.open(r)), blocked));
+    const isPrimary = !done && !firstPendingSeen;
+    if (!done) firstPendingSeen = true;
+    list.appendChild(hubRow('photo', r.title, `${r.required_count} фото`, done, guard(() => Photo.open(r)), blocked, isPrimary));
   });
   t.audio_requirements.forEach(r => {
     const key = hubKey('audio', r.id);
     const done = !!State.hubProgress[key];
-    list.appendChild(hubRow('audio', r.title, `Мін. ${r.min_duration_sec} сек`, done, guard(() => Audio.open(r)), blocked));
+    const isPrimary = !done && !firstPendingSeen;
+    if (!done) firstPendingSeen = true;
+    list.appendChild(hubRow('audio', r.title, `Мін. ${r.min_duration_sec} сек`, done, guard(() => Audio.open(r)), blocked, isPrimary));
   });
   t.questionnaires.forEach(r => {
     const key = hubKey('quest', r.questionnaire_id);
     const done = !!State.hubProgress[key];
-    list.appendChild(hubRow('quest', r.title, `${r.criteria_count} питань`, done, guard(() => Quest.open(r)), blocked));
+    const isPrimary = !done && !firstPendingSeen;
+    if (!done) firstPendingSeen = true;
+    list.appendChild(hubRow('quest', r.title, `${r.criteria_count} питань`, done, guard(() => Quest.open(r)), blocked, isPrimary));
   });
 
   document.getElementById('btn-hub-submit').disabled = blocked;
 }
 
-function hubRow(kind, title, sub, done, onClick, blocked = false) {
+function hubRow(kind, title, sub, done, onClick, blocked = false, isPrimary = false) {
   const icons = { photo: 'ti-camera', audio: 'ti-microphone', quest: 'ti-clipboard-check' };
+  const themeBadge = { photo: 'accent', audio: 'warn', quest: 'success' };
   const card = document.createElement('div');
-  card.className = 'card' + (done ? '' : ' highlight');
+  card.className = 'card' + (isPrimary ? ' highlight' : '');
+  if (done) card.style.opacity = '.6';
+  const badgeClass = done ? 'success' : (isPrimary ? 'accent' : themeBadge[kind]);
+  const btnHtml = done ? '' : (
+    isPrimary
+      ? `<button class="fm-btn sm" type="button" ${blocked ? 'disabled' : ''}>Виконати <i class="ti ti-arrow-right" aria-hidden="true"></i></button>`
+      : `<button class="fm-btn sm outline" type="button" ${blocked ? 'disabled' : ''}>Виконати <i class="ti ti-arrow-right" aria-hidden="true"></i></button>`
+  );
   card.innerHTML = `
     <div style="display:flex;gap:9px;align-items:center;margin-bottom:${done ? '0' : '8px'}">
       <div class="req-icon ${kind}"><i class="ti ${icons[kind]}" aria-hidden="true"></i></div>
       <div class="req-info"><div class="t">${escapeHtml(title)}</div><div class="s">${escapeHtml(sub)}</div></div>
-      <span class="badge ${done ? 'success' : 'accent'}">${done ? 'Готово' : 'Нове'}</span>
+      <span class="badge ${badgeClass}">${done ? 'Здано' : 'Нове'}</span>
     </div>
-    ${done ? '' : `<button class="fm-btn sm" type="button" ${blocked ? 'disabled' : ''}>Виконати <i class="ti ti-arrow-right" aria-hidden="true"></i></button>`}
+    ${btnHtml}
   `;
   if (!done) card.querySelector('button').addEventListener('click', onClick);
   return card;
@@ -481,7 +528,7 @@ const Photo = {
       const file = files[i];
       if (file) {
         slot.className = 'photo-slot filled';
-        slot.innerHTML = `<img src="${URL.createObjectURL(file)}" alt=""><span class="check"><i class="ti ti-check" aria-hidden="true"></i></span>`;
+        slot.innerHTML = `<i class="ti ti-check" style="font-size:18px;color:var(--accent)" aria-hidden="true"></i><span class="lbl" style="color:var(--accent)">фото ${i + 1}</span>`;
       } else {
         slot.className = 'photo-slot empty';
         slot.innerHTML = `<i class="ti ti-camera" style="font-size:20px" aria-hidden="true"></i><span class="lbl">фото ${i + 1}</span>`;
@@ -537,7 +584,7 @@ const Photo = {
     }
 
     btn.disabled = false;
-    btn.innerHTML = 'Готово <i class="ti ti-arrow-right" aria-hidden="true"></i>';
+    btn.innerHTML = 'Зберегти <i class="ti ti-arrow-right" aria-hidden="true"></i>';
 
     if (allOk) {
       State.hubProgress[hubKey('photo', req.id)] = true;
@@ -566,7 +613,7 @@ const Audio = {
     document.getElementById('audio-title').textContent = requirement.title;
     document.getElementById('audio-min').textContent = `Мін. ${requirement.min_duration_sec} сек`;
     document.getElementById('audio-instr').textContent = requirement.instruction || '';
-    document.getElementById('rec-timer').textContent = `00:00 / мін. ${String(requirement.min_duration_sec).padStart(2, '0')} сек`;
+    document.getElementById('rec-timer').textContent = `00:00 / мін. ${formatMMSS(requirement.min_duration_sec)}`;
     document.getElementById('audio-playback').style.display = 'none';
     document.getElementById('wake-note').style.display = 'none';
     document.getElementById('audio-alert').classList.remove('show');
@@ -604,7 +651,7 @@ const Audio = {
         document.getElementById('btn-audio-save').disabled = this.duration < min;
         const alertEl = document.getElementById('audio-alert');
         if (this.duration < min) {
-          alertEl.textContent = `Занадто коротко (мін. ${min} сек). Перезапишіть.`;
+          alertEl.textContent = `Занадто коротко (мін. ${formatMMSS(min)}). Перезапишіть.`;
           alertEl.className = 'fm-alert show warn';
         } else {
           alertEl.classList.remove('show');
@@ -621,7 +668,7 @@ const Audio = {
       const min = State.currentReq.min_duration_sec;
       this.timerInterval = setInterval(() => {
         secs++;
-        document.getElementById('rec-timer').textContent = `${String(secs).padStart(2, '0')} / мін. ${String(min).padStart(2, '0')} сек`;
+        document.getElementById('rec-timer').textContent = `${formatMMSS(secs)} / мін. ${formatMMSS(min)}`;
       }, 1000);
     } catch (e) {
       document.getElementById('audio-alert').textContent = 'Немає доступу до мікрофону: ' + e.message;
@@ -708,7 +755,7 @@ const Quest = {
     const c = visible[q.idx];
 
     document.getElementById('q-progress-txt').textContent = `${q.idx + 1}/${visible.length}`;
-    document.getElementById('q-progress-fill').style.width = `${Math.round(((q.idx) / visible.length) * 100)}%`;
+    document.getElementById('q-progress-fill').style.width = `${Math.round(((q.idx + 1) / visible.length) * 100)}%`;
     document.getElementById('q-section-label').textContent = q.sectionTitle;
     document.getElementById('q-alert').classList.remove('show');
 
@@ -806,6 +853,12 @@ function fileToBase64(file) {
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
+}
+
+function formatMMSS(totalSeconds) {
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
 // ─── SERVICE WORKER ───────────────────────────────────────
