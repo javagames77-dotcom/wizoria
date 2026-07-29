@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════
 
 const API_BASE = 'https://primary-production-4b93e.up.railway.app/webhook';
-const APP_VERSION = 'v13'; // bump this on every real code change — visible on screen bottom-right,
+const APP_VERSION = 'v14'; // bump this on every real code change — visible on screen bottom-right,
 // so it's possible to confirm at a glance whether a new deploy actually reached the device,
 // instead of asking "did you upload it?" every time.
 document.addEventListener('DOMContentLoaded', () => {
@@ -71,6 +71,9 @@ function restoreSession() {
     State.hubProgress = s.hubProgress || {};
     Router.show('hub');
     renderHub();
+    // reconcile против IndexedDB — сесія в localStorage могла бути записана до того, як
+    // пункт потрапив у чергу (наприклад iOS перезавантажив сторінку саме в цей момент)
+    OfflineQueue.reconcile().then(() => { renderHub(); OfflineQueue.trySync(); });
     return true;
   } catch (e) {
     return false;
@@ -90,21 +93,179 @@ function doLogout() {
 }
 
 // ─── API HELPER ───────────────────────────────────────────
+// Returns { status, data, offline }. `offline` is the single signal every caller should
+// check to decide "queue this for later" vs "show a real error" — it's true both when
+// fetch() itself throws (no connection, SW not active yet) and when the service worker's
+// own offline fallback answered instead of the real server (see sw.js, X-GA-Offline header).
+// Never throws, so callers no longer need their own try/catch just to avoid an unhandled
+// rejection freezing a button mid-spinner.
 async function api(path, { method = 'GET', body = null, isForm = false } = {}) {
   const headers = {};
   if (State.token) headers['Authorization'] = 'Bearer ' + State.token;
   if (!isForm && body) headers['Content-Type'] = 'application/json';
 
-  const res = await fetch(API_BASE + path, {
-    method,
-    headers,
-    body: isForm ? body : (body ? JSON.stringify(body) : undefined)
-  });
+  try {
+    const res = await fetch(API_BASE + path, {
+      method,
+      headers,
+      body: isForm ? body : (body ? JSON.stringify(body) : undefined)
+    });
 
-  let data;
-  try { data = await res.json(); } catch (e) { data = { success: false, error: 'Некоректна відповідь сервера' }; }
-  return { status: res.status, data };
+    let data;
+    try { data = await res.json(); } catch (e) { data = { success: false, error: 'Некоректна відповідь сервера' }; }
+    const offline = res.headers.get('X-GA-Offline') === '1';
+    return { status: res.status, data, offline };
+  } catch (e) {
+    return { status: 0, data: { success: false, error: "Немає з'єднання з сервером" }, offline: true };
+  }
 }
+
+// ─── OFFLINE QUEUE (IndexedDB) ─────────────────────────────
+// ТЗ: «Анкета заповнюється без інтернету. Синхронізація при підключенні» — тут разбито
+// на фото/аудіо/анкету, все три ідуть через одну й ту саму чергу. IndexedDB, а не
+// localStorage: base64-фото/аудіо можуть важити по кілька МБ кожне, а localStorage
+// звично обмежений 5–10 МБ на весь домен — легко впертись у квоту й тихо втратити дані.
+const OfflineDB = {
+  _dbPromise: null,
+  open() {
+    if (this._dbPromise) return this._dbPromise;
+    this._dbPromise = new Promise((resolve, reject) => {
+      const req = indexedDB.open('ga_offline_db', 1);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains('queue')) {
+          db.createObjectStore('queue', { keyPath: 'id', autoIncrement: true });
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    return this._dbPromise;
+  },
+  async add(item) {
+    const db = await this.open();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('queue', 'readwrite');
+      const r = tx.objectStore('queue').add(item);
+      r.onsuccess = () => resolve(r.result);
+      r.onerror = () => reject(r.error);
+    });
+  },
+  async all() {
+    const db = await this.open();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('queue', 'readonly');
+      const r = tx.objectStore('queue').getAll();
+      r.onsuccess = () => resolve(r.result);
+      r.onerror = () => reject(r.error);
+    });
+  },
+  async remove(id) {
+    const db = await this.open();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('queue', 'readwrite');
+      const r = tx.objectStore('queue').delete(id);
+      r.onsuccess = () => resolve();
+      r.onerror = () => reject(r.error);
+    });
+  }
+};
+
+const OfflineQueue = {
+  syncing: false,
+
+  // Called right when a submit-photo/-audio/-answers call comes back `offline`.
+  // `hubKey` matches renderHub()'s own key so the checklist row can show it as queued.
+  async enqueue(kind, key, submissionId, payload) {
+    await OfflineDB.add({ kind, key, submissionId, payload, createdAt: Date.now() });
+    State.hubProgress[key] = 'queued';
+    saveSession();
+  },
+
+  // Re-derives "queued" flags for the currently open task from what's actually sitting
+  // in IndexedDB — needed because a plain page reload wipes State but not IndexedDB, so
+  // State.hubProgress alone (even restored from localStorage) could go stale/out of sync.
+  async reconcile() {
+    if (!State.currentTask || !State.currentSubmissionId) return;
+    const items = await OfflineDB.all();
+    items
+      .filter(it => it.submissionId === State.currentSubmissionId)
+      .forEach(it => { if (State.hubProgress[it.key] !== true) State.hubProgress[it.key] = 'queued'; });
+  },
+
+  async trySync() {
+    if (this.syncing) return;
+    this.syncing = true;
+    let touchedHub = false;
+    try {
+      const items = (await OfflineDB.all()).sort((a, b) => a.createdAt - b.createdAt);
+      for (const item of items) {
+        const outcome = await this._sendOne(item);
+        if (outcome === 'offline') break; // still no connection — stop this pass, try again later
+        await OfflineDB.remove(item.id);
+        if (outcome === 'synced') {
+          State.hubProgress[item.key] = true;
+        } else if (outcome === 'rejected') {
+          // real server-side validation error, not connectivity — don't retry forever;
+          // dropping the flag turns the row back into "Нове" so the shopper can redo it
+          delete State.hubProgress[item.key];
+        }
+        if (State.currentSubmissionId === item.submissionId) { saveSession(); touchedHub = true; }
+      }
+    } finally {
+      this.syncing = false;
+      if (touchedHub && document.getElementById('screen-hub')?.classList.contains('active')) renderHub();
+    }
+  },
+
+  async _sendOne(item) {
+    if (item.kind === 'photo') {
+      for (const f of item.payload.files) {
+        const { data, offline } = await api('/ga/shopper/submit-photo', {
+          method: 'POST',
+          body: {
+            submission_id: item.submissionId,
+            photo_requirement_id: item.payload.photo_requirement_id,
+            comment: item.payload.comment || undefined,
+            file_base64: f.file_base64,
+            mime_type: f.mime_type
+          }
+        });
+        if (offline) return 'offline';
+        if (!data.success) return 'rejected';
+      }
+      return 'synced';
+    }
+    if (item.kind === 'audio') {
+      const { data, offline } = await api('/ga/shopper/submit-audio', {
+        method: 'POST',
+        body: {
+          submission_id: item.submissionId,
+          audio_requirement_id: item.payload.audio_requirement_id,
+          duration_sec: item.payload.duration_sec,
+          file_base64: item.payload.file_base64,
+          mime_type: item.payload.mime_type
+        }
+      });
+      if (offline) return 'offline';
+      return data.success ? 'synced' : 'rejected';
+    }
+    if (item.kind === 'answers') {
+      const { data, offline } = await api('/ga/shopper/submit-answers', {
+        method: 'POST',
+        body: { submission_id: item.submissionId, answers: item.payload.answers }
+      });
+      if (offline) return 'offline';
+      return data.success ? 'synced' : 'rejected';
+    }
+    return 'rejected';
+  }
+};
+
+window.addEventListener('online', () => OfflineQueue.trySync());
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') OfflineQueue.trySync();
+});
 
 // ─── ROUTER ───────────────────────────────────────────────
 const Router = {
@@ -319,6 +480,7 @@ const Task = {
       saveSession();
       Router.show('hub');
       renderHub();
+      OfflineQueue.reconcile().then(() => { renderHub(); OfflineQueue.trySync(); });
     } else {
       Router.show('geo');
       resetGeoScreen();
@@ -494,21 +656,21 @@ function renderHub() {
 
   t.photo_requirements.forEach(r => {
     const key = hubKey('photo', r.id);
-    const done = !!State.hubProgress[key];
+    const done = State.hubProgress[key]; // true | 'queued' | undefined
     const isPrimary = !done && !firstPendingSeen;
     if (!done) firstPendingSeen = true;
     list.appendChild(hubRow('photo', r.title, `${r.required_count} фото`, done, guard(() => Photo.open(r)), blocked, isPrimary));
   });
   t.audio_requirements.forEach(r => {
     const key = hubKey('audio', r.id);
-    const done = !!State.hubProgress[key];
+    const done = State.hubProgress[key];
     const isPrimary = !done && !firstPendingSeen;
     if (!done) firstPendingSeen = true;
     list.appendChild(hubRow('audio', r.title, `Мін. ${r.min_duration_sec} сек`, done, guard(() => Audio.open(r)), blocked, isPrimary));
   });
   t.questionnaires.forEach(r => {
     const key = hubKey('quest', r.questionnaire_id);
-    const done = !!State.hubProgress[key];
+    const done = State.hubProgress[key];
     const isPrimary = !done && !firstPendingSeen;
     if (!done) firstPendingSeen = true;
     list.appendChild(hubRow('quest', r.title, `${r.criteria_count} питань`, done, guard(() => Quest.open(r)), blocked, isPrimary));
@@ -521,23 +683,27 @@ function hubRow(kind, title, sub, done, onClick, blocked = false, isPrimary = fa
   const icons = { photo: 'ti-camera', audio: 'ti-microphone', quest: 'ti-clipboard-check' };
   const themeBadge = { photo: 'accent', audio: 'warn', quest: 'success' };
   const card = document.createElement('div');
+  const queued = done === 'queued';
+  const finished = done === true; // подтверджено сервером, на відміну від локально відкладеного
+  const hideButton = finished || queued;
   card.className = 'card' + (isPrimary ? ' highlight' : '');
-  if (done) card.style.opacity = '.6';
-  const badgeClass = done ? 'success' : (isPrimary ? 'accent' : themeBadge[kind]);
-  const btnHtml = done ? '' : (
+  if (finished) card.style.opacity = '.6';
+  const badgeClass = finished ? 'success' : (queued ? 'muted' : (isPrimary ? 'accent' : themeBadge[kind]));
+  const badgeText = finished ? 'Здано' : (queued ? 'Очікує синхр.' : 'Нове');
+  const btnHtml = hideButton ? '' : (
     isPrimary
       ? `<button class="fm-btn sm" type="button" ${blocked ? 'disabled' : ''}>Виконати <i class="ti ti-arrow-right" aria-hidden="true"></i></button>`
       : `<button class="fm-btn sm outline" type="button" ${blocked ? 'disabled' : ''}>Виконати <i class="ti ti-arrow-right" aria-hidden="true"></i></button>`
   );
   card.innerHTML = `
-    <div style="display:flex;gap:9px;align-items:center;margin-bottom:${done ? '0' : '8px'}">
+    <div style="display:flex;gap:9px;align-items:center;margin-bottom:${hideButton ? '0' : '8px'}">
       <div class="req-icon ${kind}"><i class="ti ${icons[kind]}" aria-hidden="true"></i></div>
       <div class="req-info"><div class="t">${escapeHtml(title)}</div><div class="s">${escapeHtml(sub)}</div></div>
-      <span class="badge ${badgeClass}">${done ? 'Здано' : 'Нове'}</span>
+      <span class="badge ${badgeClass}">${badgeText}</span>
     </div>
     ${btnHtml}
   `;
-  if (!done) card.querySelector('button').addEventListener('click', onClick);
+  if (!hideButton) card.querySelector('button').addEventListener('click', onClick);
   return card;
 }
 
@@ -545,6 +711,20 @@ document.getElementById('btn-hub-submit').addEventListener('click', async () => 
   const btn = document.getElementById('btn-hub-submit');
   const alertEl = document.getElementById('hub-alert');
   alertEl.classList.remove('show');
+
+  // Не б'ємо по /submit, якщо по цьому ж submission ще лежать несинхронізовані пункти —
+  // сервер чесно відповість "missing", але для користувача, який щойно все заповнив
+  // офлайн, це виглядатиме як втрата даних. Замість цього — зрозуміле повідомлення + sync.
+  const pendingHere = (await OfflineDB.all()).some(it => it.submissionId === State.currentSubmissionId);
+  if (pendingHere) {
+    alertEl.textContent = navigator.onLine
+      ? 'Дані ще синхронізуються, зачекайте кілька секунд і спробуйте ще раз.'
+      : "Дані збережено локально й надішляться автоматично, коли з'явиться інтернет.";
+    alertEl.className = 'fm-alert show warn';
+    OfflineQueue.trySync();
+    return;
+  }
+
   btn.disabled = true;
   btn.innerHTML = '<span class="loading-spin"></span>';
 
@@ -629,19 +809,37 @@ const Photo = {
     btn.innerHTML = '<span class="loading-spin"></span>';
 
     const comment = document.getElementById('photo-comment').value.trim();
+    const key = hubKey('photo', req.id);
     let allOk = true;
-    for (const file of files) {
-      const base64 = await fileToBase64(file);
-      const { data } = await api('/ga/shopper/submit-photo', {
+    let wentOffline = false;
+
+    for (let i = 0; i < files.length; i++) {
+      const base64 = await fileToBase64(files[i]);
+      const { data, offline } = await api('/ga/shopper/submit-photo', {
         method: 'POST',
         body: {
           submission_id: State.currentSubmissionId,
           photo_requirement_id: req.id,
           comment: comment || undefined,
           file_base64: base64,
-          mime_type: file.type
+          mime_type: files[i].type
         }
       });
+      if (offline) {
+        // жодне фото від i-го й далі ще не доїхало до сервера — кладемо всі разом,
+        // одним пунктом черги, щоб рядок у хабі відповідав одному стану "в очікуванні"
+        const remaining = await Promise.all(files.slice(i).map(async f => ({
+          file_base64: await fileToBase64(f),
+          mime_type: f.type
+        })));
+        await OfflineQueue.enqueue('photo', key, State.currentSubmissionId, {
+          photo_requirement_id: req.id,
+          comment: comment || undefined,
+          files: remaining
+        });
+        wentOffline = true;
+        break;
+      }
       if (!data.success) {
         allOk = false;
         alertEl.textContent = data.error || 'Помилка завантаження';
@@ -653,8 +851,11 @@ const Photo = {
     btn.disabled = false;
     btn.innerHTML = 'Зберегти <i class="ti ti-arrow-right" aria-hidden="true"></i>';
 
-    if (allOk) {
-      State.hubProgress[hubKey('photo', req.id)] = true;
+    if (wentOffline) {
+      Router.show('hub');
+      renderHub();
+    } else if (allOk) {
+      State.hubProgress[key] = true;
       saveSession();
       Router.show('hub');
       renderHub();
@@ -751,8 +952,9 @@ const Audio = {
 
     const audioBase64 = await fileToBase64(this.blob);
     const audioMime = this.blob.type || 'audio/webm';
+    const key = hubKey('audio', req.id);
 
-    const { data } = await api('/ga/shopper/submit-audio', {
+    const { data, offline } = await api('/ga/shopper/submit-audio', {
       method: 'POST',
       body: {
         submission_id: State.currentSubmissionId,
@@ -765,8 +967,17 @@ const Audio = {
     btn.disabled = false;
     btn.innerHTML = 'Зберегти <i class="ti ti-arrow-right" aria-hidden="true"></i>';
 
-    if (data.success) {
-      State.hubProgress[hubKey('audio', req.id)] = true;
+    if (offline) {
+      await OfflineQueue.enqueue('audio', key, State.currentSubmissionId, {
+        audio_requirement_id: req.id,
+        duration_sec: this.duration,
+        file_base64: audioBase64,
+        mime_type: audioMime
+      });
+      Router.show('hub');
+      renderHub();
+    } else if (data.success) {
+      State.hubProgress[key] = true;
       saveSession();
       Router.show('hub');
       renderHub();
@@ -881,14 +1092,19 @@ const Quest = {
     const answers = Object.entries(State.quest.answers).map(([criterion_id, answer_value]) => ({
       criterion_id: Number(criterion_id), answer_value
     }));
+    const key = hubKey('quest', State.quest.questionnaireId);
 
-    const { data } = await api('/ga/shopper/submit-answers', {
+    const { data, offline } = await api('/ga/shopper/submit-answers', {
       method: 'POST',
       body: { submission_id: State.currentSubmissionId, answers }
     });
 
-    if (data.success) {
-      State.hubProgress[hubKey('quest', State.quest.questionnaireId)] = true;
+    if (offline) {
+      await OfflineQueue.enqueue('answers', key, State.currentSubmissionId, { answers });
+      Router.show('hub');
+      renderHub();
+    } else if (data.success) {
+      State.hubProgress[key] = true;
       saveSession();
       Router.show('hub');
       renderHub();
