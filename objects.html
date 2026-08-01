@@ -277,16 +277,15 @@ function updateCircle() {
 async function reverseGeocode(lat, lng) {
   try {
     const res = await fetch(
-      `${API_BASE}/ga/admin/geocode/reverse?lat=${lat}&lng=${lng}`,
-      { headers: authHeaders() }
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
+      { headers: { 'Accept-Language': 'uk,ru,en' } }
     );
-    if (!res.ok) { console.error('Geocode reverse: HTTP', res.status); return; }
     const data = await res.json();
-    if (data.success && data.result && data.result.display_name) {
-      document.getElementById('f-address').value = data.result.display_name;
+    if (data && data.display_name) {
+      document.getElementById('f-address').value = data.display_name;
     }
   } catch (err) {
-    console.error('Geocode reverse error:', err);
+    console.error('Reverse geocode error:', err);
   }
 }
 
@@ -341,25 +340,18 @@ addressInput.addEventListener('input', () => {
   if (suppressNextGeocode) { suppressNextGeocode = false; return; }
   clearTimeout(addressDebounce);
   const query = addressInput.value.trim();
-  if (query.length < 4) { hideSuggestions(); document.getElementById('address-status').style.display = 'none'; return; }
+  if (query.length < 3) { hideSuggestions(); document.getElementById('address-status').style.display = 'none'; return; }
 
   addressDebounce = setTimeout(async () => {
     const statusEl = document.getElementById('address-status');
     statusEl.style.display = 'none';
     try {
       const res = await fetch(
-        `${API_BASE}/ga/admin/geocode/search?q=${encodeURIComponent(query)}`,
-        { headers: authHeaders() }
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&addressdetails=1`,
+        { headers: { 'Accept-Language': 'uk,ru,en' } }
       );
-      if (!res.ok) {
-        console.error('Geocode search: HTTP', res.status);
-        statusEl.textContent = `Пошук недоступний (HTTP ${res.status})`;
-        statusEl.style.display = 'block';
-        hideSuggestions(); return;
-      }
-      const data = await res.json();
-      const results = data.results || [];
-      if (results.length === 0) {
+      const results = await res.json();
+      if (!results || !results.length) {
         statusEl.textContent = 'Нічого не знайдено';
         statusEl.style.display = 'block';
         hideSuggestions(); return;
@@ -380,7 +372,7 @@ addressInput.addEventListener('input', () => {
       });
       suggestionsBox.style.display = 'block';
     } catch (err) {
-      console.error('Geocode search error:', err);
+      console.error('Address search error:', err);
       statusEl.textContent = "Немає з'єднання з сервісом пошуку адрес";
       statusEl.style.display = 'block';
       hideSuggestions();
