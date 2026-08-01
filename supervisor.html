@@ -175,6 +175,19 @@ body{margin:0;font-family:'Inter',-apple-system,sans-serif;background:var(--bg);
   </div>
 </div>
 
+<!-- Лайтбокс фото -- НЕ з ТЗ (мокап малює лише статичний плейсхолдер), додано щоб
+     "Підтвердити"/перегляд фото реально працював -->
+<div id="photoLightbox" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:100;align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this) closePhotoLightbox()">
+  <div style="max-width:800px;max-height:90vh;display:flex;flex-direction:column;align-items:center">
+    <img id="lightboxImg" style="max-width:100%;max-height:75vh;border-radius:8px;object-fit:contain">
+    <div style="background:var(--bg2);border-radius:0 0 8px 8px;padding:12px 16px;max-width:100%;width:100%">
+      <div id="lightboxTitle" style="font-size:13px;font-weight:600;color:var(--black);margin-bottom:4px"></div>
+      <div id="lightboxCaption" style="font-size:12px;color:var(--muted)"></div>
+    </div>
+    <button onclick="closePhotoLightbox()" style="margin-top:10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px 14px;font-size:12px;color:var(--text);cursor:pointer">Закрити</button>
+  </div>
+</div>
+
 <script>
 // ============================================================
 // Auth -- справжній екран входу, 1:1 з реального login-4.html (POST /ga/auth/login)
@@ -223,6 +236,18 @@ async function api(path, opts){
 function showView(name){
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.getElementById('view-'+name).classList.add('active');
+}
+
+function openPhotoLightbox(idx){
+  const p = (currentDetail.photos||[])[idx];
+  if(!p) return;
+  document.getElementById('lightboxImg').src = p.file_url;
+  document.getElementById('lightboxTitle').textContent = p.title || '';
+  document.getElementById('lightboxCaption').textContent = [p.description, p.comment].filter(Boolean).join(' — ') || 'Без коментаря';
+  document.getElementById('photoLightbox').style.display = 'flex';
+}
+function closePhotoLightbox(){
+  document.getElementById('photoLightbox').style.display = 'none';
 }
 
 function escapeHtml(s){ if(s===null||s===undefined) return ''; return String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
@@ -397,9 +422,13 @@ function renderDetail(){
   });
 
   let photosHtml = '';
-  (d.photos||[]).forEach(p=>{
-    photosHtml += `<div style="flex:1;border-radius:7px;overflow:hidden;border:0.5px solid var(--accent-border);cursor:pointer" title="${escapeHtml(p.title)}">
-      <img src="${escapeHtml(p.file_url)}" style="width:100%;height:64px;object-fit:cover;display:block">
+  (d.photos||[]).forEach((p, idx)=>{
+    const caption = [p.description, p.comment].filter(Boolean).join(' — ');
+    photosHtml += `<div style="flex:1;min-width:0">
+      <div style="border-radius:7px;overflow:hidden;border:0.5px solid var(--accent-border);cursor:pointer" onclick="openPhotoLightbox(${idx})">
+        <img src="${escapeHtml(p.file_url)}" style="width:100%;height:64px;object-fit:cover;display:block">
+      </div>
+      <div style="font-size:9px;color:var(--muted);margin-top:3px;line-height:1.3">${escapeHtml(truncate(caption||p.title||'',60))}</div>
     </div>`;
   });
   if(!photosHtml){
@@ -459,14 +488,15 @@ function renderDetail(){
           ${audio ? `<audio id="mainAudio" controls style="width:100%;height:32px" src="${escapeHtml(audio.file_url)}"></audio>` : `<span style="font-size:11px;color:var(--muted)">Аудіозапис відсутній</span>`}
         </div>
         <div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);margin-bottom:8px">Діалог (при кліку на цитату)</div>
-        <div id="dialogPanel" style="border:0.5px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:14px">
-          <div style="padding:8px 12px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px;min-height:60px">Клікніть на цитату зліва, щоб побачити діалог</div>
-        </div>
+        <div id="dialogPanel" style="border:0.5px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:14px;max-height:260px;overflow-y:auto"></div>
         <div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);margin-bottom:8px">Фото-докази</div>
         <div style="display:flex;gap:8px">${photosHtml}</div>
       </div>
     </div>
   `;
+  renderDialoguePanel(null);
+  const mainAudioEl = document.getElementById('mainAudio');
+  if(mainAudioEl) mainAudioEl.addEventListener('play', ()=>renderDialoguePanel(null));
 }
 
 async function submitDecision(decision){
@@ -478,54 +508,61 @@ async function submitDecision(decision){
   openDetail(currentDetail.submission.submission_id);
 }
 
-// Клік по цитаті -- заповнює праву панель "Діалог", 1:1 стиль бульбашок з ТЗ (персонал/клієнт)
-function openQuote(criterion){
+// Будує панель "Діалог" -- ЗАВЖДИ повний текст по ролях (не тільки при кліку на цитату).
+// highlightCriterion, якщо переданий (клік по цитаті), підсвічує репліку з найближчим таймкодом.
+function renderDialoguePanel(highlightCriterion){
   const audio = (currentDetail.audio||[])[0];
   let body = `<div style="padding:8px 12px;border-bottom:0.5px solid var(--border);display:flex;justify-content:space-between;align-items:center">
     <span style="font-size:11px;font-weight:500;color:var(--black)">${escapeHtml(currentDetail.submission.section_title||'')} — повний діалог</span>
   </div>`;
-
-  if(audio && audio.file_url){
-    body += `<div style="background:var(--accent-light);padding:8px 12px;display:flex;align-items:center;gap:8px;border-bottom:0.5px solid var(--border)">
-      <div style="width:22px;height:22px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ti-player-play" style="font-size:11px;color:#fff"></i></div>
-      <span style="font-size:11px;color:var(--accent);font-weight:500">Оригінальне аудіо</span>
-      <audio controls style="height:24px;flex:1" src="${escapeHtml(audio.file_url)}" id="dlgAudio"></audio>
-    </div>`;
-  }
 
   let dlg = audio ? audio.dialogue : null;
   if(typeof dlg === 'string'){ try{ dlg = JSON.parse(dlg); }catch(e){ dlg = null; } }
 
   body += `<div style="padding:10px 12px;display:flex;flex-direction:column;gap:8px">`;
   if(Array.isArray(dlg) && dlg.length){
-    dlg.forEach(line=>{
+    dlg.forEach((line, i)=>{
       const isClient = /клієнт|client/i.test(line.speaker||'');
+      const isHighlight = highlightCriterion && highlightCriterion.timestamp_start!==null && highlightCriterion.timestamp_start!==undefined
+        && line.start!==undefined && Math.abs(Number(line.start) - Number(highlightCriterion.timestamp_start)) < 3;
+      const ring = isHighlight ? 'box-shadow:0 0 0 2px var(--accent);' : '';
       if(isClient){
-        body += `<div style="display:flex;flex-direction:column;align-items:flex-end">
+        body += `<div id="dlgLine${i}" style="display:flex;flex-direction:column;align-items:flex-end">
           <div style="font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:3px">${escapeHtml(line.speaker||'Клієнт')}</div>
-          <div style="max-width:78%;background:var(--accent);padding:6px 9px;border-radius:7px 0 7px 7px;font-size:11px;line-height:1.5;color:#fff">${escapeHtml(line.text||'')}</div>
+          <div style="max-width:78%;background:var(--accent);padding:6px 9px;border-radius:7px 0 7px 7px;font-size:11px;line-height:1.5;color:#fff;${ring}">${escapeHtml(line.text||'')}</div>
         </div>`;
       } else {
-        body += `<div>
+        body += `<div id="dlgLine${i}">
           <div style="font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);margin-bottom:3px">${escapeHtml(line.speaker||'Персонал')}</div>
-          <div style="max-width:78%;background:var(--bg3);padding:6px 9px;border-radius:0 7px 7px 7px;font-size:11px;line-height:1.5;color:var(--text)">${escapeHtml(line.text||'')}</div>
+          <div style="max-width:78%;background:var(--bg3);padding:6px 9px;border-radius:0 7px 7px 7px;font-size:11px;line-height:1.5;color:var(--text);${ring}">${escapeHtml(line.text||'')}</div>
         </div>`;
       }
     });
+  } else if(currentDetail.criteria && currentDetail.criteria.some(c=>c.ai_quote)){
+    // dialogue-масиву немає, але є хоча б цитати по критеріях -- показуємо їх як послідовність
+    currentDetail.criteria.filter(c=>c.ai_quote).forEach(c=>{
+      const isHighlight = highlightCriterion && highlightCriterion.criterion_id === c.criterion_id;
+      const ring = isHighlight ? 'box-shadow:0 0 0 2px var(--accent);' : '';
+      body += `<div>
+        <div style="font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);margin-bottom:3px">${escapeHtml(c.question_text)} (${c.timestamp_start ?? '—'}с)</div>
+        <div style="max-width:100%;background:var(--bg3);padding:6px 9px;border-radius:0 7px 7px 7px;font-size:11px;line-height:1.5;color:var(--text);${ring}">${escapeHtml(c.ai_quote)}</div>
+      </div>`;
+    });
+    body += `<div style="font-size:10px;color:var(--muted);margin-top:4px;font-style:italic">Повна діаризація діалогу для цього запису ще не збережена в базі (<code>ga_submission_audio.dialogue</code> порожнє) -- показані лише окремі цитати по критеріях.</div>`;
   } else {
-    body += `<div>
-      <div style="font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);margin-bottom:3px">Цитата (таймкод ${criterion.timestamp_start ?? '—'}с)</div>
-      <div style="max-width:100%;background:var(--bg3);padding:6px 9px;border-radius:0 7px 7px 7px;font-size:11px;line-height:1.5;color:var(--text)">${escapeHtml(criterion.ai_quote)}</div>
-      <div style="font-size:10px;color:var(--muted);margin-top:6px;font-style:italic">Повна діаризація діалогу для цього запису ще не збережена в базі -- показана лише сама цитата.</div>
-    </div>`;
+    body += `<div style="color:var(--muted);font-size:11px;text-align:center;padding:10px 0">Діалог для цього запису відсутній.</div>`;
   }
   body += `</div>`;
 
   document.getElementById('dialogPanel').innerHTML = body;
-  const dlgAudio = document.getElementById('dlgAudio');
-  if(dlgAudio && criterion.timestamp_start!==null && criterion.timestamp_start!==undefined){
-    dlgAudio.addEventListener('loadedmetadata', ()=>{ dlgAudio.currentTime = Number(criterion.timestamp_start); });
-  }
+}
+
+function openQuote(criterion){
+  renderDialoguePanel(criterion);
+  const line = document.getElementById('dlgLine'+criterion.criterion_id);
+  const panel = document.getElementById('dialogPanel');
+  if(line) line.scrollIntoView({block:'center'});
+  else panel.scrollTop = 0;
 }
 
 // ============================================================
