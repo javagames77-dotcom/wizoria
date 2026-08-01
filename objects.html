@@ -155,6 +155,7 @@ tr:last-child td{border-bottom:none}
       <div class="form-field" style="margin-bottom:10px;position:relative">
         <label>Адреса</label>
         <input type="text" id="f-address" placeholder="вул. Європейська 60А, Полтава" autocomplete="off">
+        <div id="address-status" style="font-size:10px;color:var(--muted);margin-top:3px;display:none"></div>
         <div id="address-suggestions" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--bg2);border:1px solid var(--border);border-radius:7px;box-shadow:var(--card-shadow);z-index:20;max-height:180px;overflow-y:auto;margin-top:3px"></div>
       </div>
 
@@ -275,26 +276,18 @@ function updateCircle() {
 
 async function reverseGeocode(lat, lng) {
   try {
-    const res = await fetch(`https://photon.komoot.io/reverse?lon=${lng}&lat=${lat}`);
-    if (!res.ok) { console.error('Photon reverse: HTTP', res.status); return; }
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
+      { headers: { 'Accept-Language': 'uk,ru,en' } }
+    );
+    if (!res.ok) { console.error('Nominatim reverse: HTTP', res.status); return; }
     const data = await res.json();
-    const f = data && data.features && data.features[0];
-    if (f) {
-      document.getElementById('f-address').value = buildAddressLabel(f.properties);
+    if (data && data.display_name) {
+      document.getElementById('f-address').value = data.display_name;
     }
   } catch (err) {
-    console.error('Photon reverse geocode error:', err);
+    console.error('Nominatim reverse geocode error:', err);
   }
-}
-
-function buildAddressLabel(p) {
-  const parts = [];
-  if (p.street) parts.push(p.street + (p.housenumber ? ' ' + p.housenumber : ''));
-  else if (p.name) parts.push(p.name);
-  if (p.city) parts.push(p.city);
-  else if (p.county) parts.push(p.county);
-  if (p.country) parts.push(p.country);
-  return parts.join(', ');
 }
 
 function movePinTo(lat, lng) {
@@ -348,37 +341,50 @@ addressInput.addEventListener('input', () => {
   if (suppressNextGeocode) { suppressNextGeocode = false; return; }
   clearTimeout(addressDebounce);
   const query = addressInput.value.trim();
-  if (query.length < 4) { hideSuggestions(); return; }
+  if (query.length < 4) { hideSuggestions(); document.getElementById('address-status').style.display = 'none'; return; }
 
   addressDebounce = setTimeout(async () => {
+    const statusEl = document.getElementById('address-status');
+    statusEl.style.display = 'none';
     try {
-      const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5`);
-      if (!res.ok) { console.error('Photon search: HTTP', res.status); hideSuggestions(); return; }
-      const data = await res.json();
-      const features = (data && data.features) || [];
-      if (features.length === 0) { hideSuggestions(); return; }
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&addressdetails=1`,
+        { headers: { 'Accept-Language': 'uk,ru,en' } }
+      );
+      if (!res.ok) {
+        console.error('Nominatim search: HTTP', res.status);
+        statusEl.textContent = `Пошук недоступний (HTTP ${res.status})`;
+        statusEl.style.display = 'block';
+        hideSuggestions(); return;
+      }
+      const results = await res.json();
+      if (!results || results.length === 0) {
+        statusEl.textContent = 'Нічого не знайдено';
+        statusEl.style.display = 'block';
+        hideSuggestions(); return;
+      }
 
       suggestionsBox.innerHTML = '';
-      features.forEach(f => {
-        const label = buildAddressLabel(f.properties);
-        const [lon, lat] = f.geometry.coordinates;
+      results.forEach(r => {
         const item = document.createElement('div');
         item.className = 'suggestion-item';
-        item.textContent = label;
+        item.textContent = r.display_name;
         item.addEventListener('click', () => {
           suppressNextGeocode = true;
-          addressInput.value = label;
-          if (leafletMap) movePinTo(lat, lon);
+          addressInput.value = r.display_name;
+          if (leafletMap) movePinTo(Number(r.lat), Number(r.lon));
           hideSuggestions();
         });
         suggestionsBox.appendChild(item);
       });
       suggestionsBox.style.display = 'block';
     } catch (err) {
-      console.error('Photon search error:', err);
+      console.error('Nominatim search error:', err);
+      statusEl.textContent = "Немає з'єднання з сервісом пошуку адрес";
+      statusEl.style.display = 'block';
       hideSuggestions();
     }
-  }, 350);
+  }, 500);
 });
 
 document.addEventListener('click', (e) => {
@@ -466,7 +472,8 @@ async function loadObjects() {
   const empty = document.getElementById('objects-empty');
   tbody.innerHTML = ''; cards.innerHTML = '';
 
-  const objects = objData.objects || [];
+  // Неактивні (видалені) об'єкти ховаємо зі списку — саме такої поведінки очікує адмін від кнопки «Видалити»
+  const objects = (objData.objects || []).filter(o => o.is_active);
   allObjects = objects;
   allSupMap = supMap;
 
