@@ -47,19 +47,28 @@ body{margin:0;font-family:'Inter',-apple-system,sans-serif;background:var(--bg);
 </head>
 <body>
 
-<div class="token-bar" id="loginBar">
-  <span>Вхід (Supervisor):</span>
-  <input id="loginInput" placeholder="логін або email" style="max-width:180px">
-  <input id="passwordInput" type="password" placeholder="пароль" style="max-width:150px">
-  <button onclick="doLogin()">Увійти</button>
-  <span id="loginStatus"></span>
+<!-- ══════════════════════════════════════════════
+     ЕКРАН ВХОДУ (1:1 з реального login-4.html, тільки перевірка
+     ролі === 'supervisor' після успіху)
+════════════════════════════════════════════════ -->
+<!-- Стрічка "залогинені як..." + вихід -- сесія бере токен з localStorage,
+     куди його кладе справжня login.html (ga_token / ga_user) -->
+<div class="token-bar" id="sessionBar" style="display:none">
+  <span id="sessionLabel"></span>
+  <button onclick="doLogout()" style="margin-left:auto">Вийти</button>
+</div>
+
+<div class="empty-state" id="notAuthedState" style="display:none;padding:60px 20px">
+  <div style="margin-bottom:10px">Ви не увійшли в систему, або сесія закінчилась.</div>
+  <a href="login.html" style="color:var(--accent);font-weight:600;text-decoration:none">← Перейти на сторінку входу</a>
 </div>
 
 <!-- ══════════════════════════════════════════════
      ЕКРАН 1: СПИСОК ПЕРЕВІРОК (1:1 з ТЗ, section-label
      "Веб-інтерфейс Supervisor — список перевірок", рядки 1643-1805)
 ════════════════════════════════════════════════ -->
-<div class="view active" id="view-reviews" style="padding:16px">
+<div class="view" id="view-reviews" style="padding:16px">
+
 
   <div class="frame">
     <div class="frame-bar">
@@ -168,42 +177,38 @@ body{margin:0;font-family:'Inter',-apple-system,sans-serif;background:var(--bg);
 
 <script>
 // ============================================================
-// Auth (панель токена -- НЕ з ТЗ, технічна заглушка тестування)
+// Auth -- справжній екран входу, 1:1 з реального login-4.html (POST /ga/auth/login)
 // ============================================================
 let BASE_URL = 'https://primary-production-4b93e.up.railway.app/webhook';
 let TOKEN = '';
+let currentUser = null;
 
-async function doLogin(){
-  const login = document.getElementById('loginInput').value.trim();
-  const password = document.getElementById('passwordInput').value;
-  const statusEl = document.getElementById('loginStatus');
-  if(!login || !password){ statusEl.textContent = 'Заповніть логін і пароль'; statusEl.style.color = 'var(--danger)'; return; }
-  statusEl.textContent = 'Входимо…'; statusEl.style.color = 'var(--muted)';
+// Сесія береться з localStorage -- саме туди справжня login.html кладе
+// ga_token / ga_user одразу після POST /ga/auth/login. Свого логіну тут більше немає.
+function initSession(){
+  let token, user;
   try{
-    const res = await fetch(BASE_URL + '/ga/auth/login', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({login, password})
-    });
-    const data = await res.json();
-    if(res.status===200 && data.success){
-      if(data.user && data.user.role !== 'supervisor'){
-        statusEl.textContent = `Це роль "${data.user.role}", а не supervisor`;
-        statusEl.style.color = 'var(--danger)';
-        return;
-      }
-      TOKEN = data.token;
-      statusEl.textContent = '✓ Увійшли як ' + (data.user ? data.user.role : '');
-      statusEl.style.color = 'var(--success)';
-      loadReviews();
-      loadShoppers();
-    } else {
-      statusEl.textContent = data.error || 'Помилка входу';
-      statusEl.style.color = 'var(--danger)';
-    }
-  } catch(e){
-    statusEl.textContent = "Немає з'єднання з сервером";
-    statusEl.style.color = 'var(--danger)';
+    token = localStorage.getItem('ga_token');
+    user = JSON.parse(localStorage.getItem('ga_user') || 'null');
+  } catch(e){ token = null; user = null; }
+
+  if(!token || !user || user.role !== 'supervisor'){
+    document.getElementById('notAuthedState').style.display = 'block';
+    return;
   }
+
+  TOKEN = token;
+  currentUser = user;
+  document.getElementById('sessionLabel').textContent = 'Увійшли як ' + ((currentUser.first_name||'') + ' ' + (currentUser.last_name||'')).trim();
+  document.getElementById('sessionBar').style.display = 'flex';
+  showView('reviews');
+  loadReviews();
+  loadShoppers();
+}
+
+function doLogout(){
+  try{ localStorage.removeItem('ga_token'); localStorage.removeItem('ga_user'); }catch(e){}
+  window.location.href = 'login.html';
 }
 
 async function api(path, opts){
@@ -592,7 +597,7 @@ async function verifyShopper(userId, action){
   loadShoppers();
 }
 
-// дані вантажаться після doLogin() -- без токена запити просто впадуть у 403
+initSession();
 </script>
 </body>
 </html>
