@@ -538,19 +538,13 @@ function renderDialoguePanel(highlightCriterion){
         </div>`;
       }
     });
-  } else if(currentDetail.criteria && currentDetail.criteria.some(c=>c.ai_quote)){
-    // dialogue-масиву немає, але є хоча б цитати по критеріях -- показуємо їх як послідовність
-    currentDetail.criteria.filter(c=>c.ai_quote).forEach(c=>{
-      const isHighlight = highlightCriterion && highlightCriterion.criterion_id === c.criterion_id;
-      const ring = isHighlight ? 'box-shadow:0 0 0 2px var(--accent);' : '';
-      body += `<div>
-        <div style="font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);margin-bottom:3px">${escapeHtml(c.question_text)} (${c.timestamp_start ?? '—'}с)</div>
-        <div style="max-width:100%;background:var(--bg3);padding:6px 9px;border-radius:0 7px 7px 7px;font-size:11px;line-height:1.5;color:var(--text);${ring}">${escapeHtml(c.ai_quote)}</div>
-      </div>`;
-    });
-    body += `<div style="font-size:10px;color:var(--muted);margin-top:4px;font-style:italic">Повна діаризація діалогу для цього запису ще не збережена в базі (<code>ga_submission_audio.dialogue</code> порожнє) -- показані лише окремі цитати по критеріях.</div>`;
+  } else if(audio && audio.transcript && audio.transcript.trim()){
+    // dialogue (діаризація по ролях) немає, але є плоский transcript STT -- показуємо
+    // його як є, ЧЕСНО позначивши що це не розділено по ролях, а не видаємо за діалог
+    body += `<div style="font-size:11px;line-height:1.6;color:var(--text)">${escapeHtml(audio.transcript)}</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:8px;font-style:italic">Це суцільний транскрипт (STT), без розділення на репліки персонал/клієнт -- діаризація (<code>ga_submission_audio.dialogue</code>) для цього запису ще не збережена.</div>`;
   } else {
-    body += `<div style="color:var(--muted);font-size:11px;text-align:center;padding:10px 0">Діалог для цього запису відсутній.</div>`;
+    body += `<div style="color:var(--muted);font-size:11px;text-align:center;padding:10px 0">Діалог для цього запису відсутній -- ані діаризація, ані транскрипт ще не збережені в базі.</div>`;
   }
   body += `</div>`;
 
