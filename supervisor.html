@@ -47,10 +47,12 @@ body{margin:0;font-family:'Inter',-apple-system,sans-serif;background:var(--bg);
 </head>
 <body>
 
-<div class="token-bar">
-  <span>Base URL:</span><input id="baseUrlInput" style="max-width:300px">
-  <span>Bearer:</span><input id="tokenInput" placeholder="токен supervisor'а (з /ga/auth/login)">
-  <button onclick="saveAuthAndReload()">Застосувати</button>
+<div class="token-bar" id="loginBar">
+  <span>Вхід (Supervisor):</span>
+  <input id="loginInput" placeholder="логін або email" style="max-width:180px">
+  <input id="passwordInput" type="password" placeholder="пароль" style="max-width:150px">
+  <button onclick="doLogin()">Увійти</button>
+  <span id="loginStatus"></span>
 </div>
 
 <!-- ══════════════════════════════════════════════
@@ -170,13 +172,38 @@ body{margin:0;font-family:'Inter',-apple-system,sans-serif;background:var(--bg);
 // ============================================================
 let BASE_URL = 'https://primary-production-4b93e.up.railway.app/webhook';
 let TOKEN = '';
-document.getElementById('baseUrlInput').value = BASE_URL;
 
-function saveAuthAndReload(){
-  BASE_URL = document.getElementById('baseUrlInput').value.trim();
-  TOKEN = document.getElementById('tokenInput').value.trim();
-  loadReviews();
-  loadShoppers();
+async function doLogin(){
+  const login = document.getElementById('loginInput').value.trim();
+  const password = document.getElementById('passwordInput').value;
+  const statusEl = document.getElementById('loginStatus');
+  if(!login || !password){ statusEl.textContent = 'Заповніть логін і пароль'; statusEl.style.color = 'var(--danger)'; return; }
+  statusEl.textContent = 'Входимо…'; statusEl.style.color = 'var(--muted)';
+  try{
+    const res = await fetch(BASE_URL + '/ga/auth/login', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({login, password})
+    });
+    const data = await res.json();
+    if(res.status===200 && data.success){
+      if(data.user && data.user.role !== 'supervisor'){
+        statusEl.textContent = `Це роль "${data.user.role}", а не supervisor`;
+        statusEl.style.color = 'var(--danger)';
+        return;
+      }
+      TOKEN = data.token;
+      statusEl.textContent = '✓ Увійшли як ' + (data.user ? data.user.role : '');
+      statusEl.style.color = 'var(--success)';
+      loadReviews();
+      loadShoppers();
+    } else {
+      statusEl.textContent = data.error || 'Помилка входу';
+      statusEl.style.color = 'var(--danger)';
+    }
+  } catch(e){
+    statusEl.textContent = "Немає з'єднання з сервером";
+    statusEl.style.color = 'var(--danger)';
+  }
 }
 
 async function api(path, opts){
@@ -565,8 +592,7 @@ async function verifyShopper(userId, action){
   loadShoppers();
 }
 
-loadReviews();
-loadShoppers();
+// дані вантажаться після doLogin() -- без токена запити просто впадуть у 403
 </script>
 </body>
 </html>
