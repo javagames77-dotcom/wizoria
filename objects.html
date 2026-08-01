@@ -276,14 +276,14 @@ function updateCircle() {
 
 async function reverseGeocode(lat, lng) {
   try {
-    const res = await fetch(
-      `${API_BASE}/ga/admin/geocode/reverse?lat=${lat}&lng=${lng}`,
-      { headers: authHeaders() }
-    );
-    if (!res.ok) { console.error('Geocode reverse: HTTP', res.status); return; }
-    const data = await res.json();
-    if (data.success && data.result && data.result.display_name) {
-      document.getElementById('f-address').value = data.result.display_name;
+    const res = await fetch('https://primary-production-4b93e.up.railway.app/webhook/geocode', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lat, lon: lng })
+    });
+    const rd = await res.json();
+    const results = rd.results || rd;
+    if (results && results[0] && results[0].display_name) {
+      document.getElementById('f-address').value = results[0].display_name;
     }
   } catch (err) {
     console.error('Geocode reverse error:', err);
@@ -347,19 +347,13 @@ addressInput.addEventListener('input', () => {
     const statusEl = document.getElementById('address-status');
     statusEl.style.display = 'none';
     try {
-      const res = await fetch(
-        `${API_BASE}/ga/admin/geocode/search?q=${encodeURIComponent(query)}`,
-        { headers: authHeaders() }
-      );
-      if (!res.ok) {
-        console.error('Geocode search: HTTP', res.status);
-        statusEl.textContent = `Пошук недоступний (HTTP ${res.status})`;
-        statusEl.style.display = 'block';
-        hideSuggestions(); return;
-      }
-      const data = await res.json();
-      const results = data.results || [];
-      if (results.length === 0) {
+      const res = await fetch('https://primary-production-4b93e.up.railway.app/webhook/geocode', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address: query })
+      });
+      const rd = await res.json();
+      const results = rd.results || rd;
+      if (!results || !results.length) {
         statusEl.textContent = 'Нічого не знайдено';
         statusEl.style.display = 'block';
         hideSuggestions(); return;
