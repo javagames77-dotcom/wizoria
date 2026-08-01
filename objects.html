@@ -277,15 +277,16 @@ function updateCircle() {
 async function reverseGeocode(lat, lng) {
   try {
     const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
-      { headers: { 'Accept-Language': 'uk,ru,en' } }
+      `${API_BASE}/ga/admin/geocode/reverse?lat=${lat}&lng=${lng}`,
+      { headers: authHeaders() }
     );
+    if (!res.ok) { console.error('Geocode reverse: HTTP', res.status); return; }
     const data = await res.json();
-    if (data && data.display_name) {
-      document.getElementById('f-address').value = data.display_name;
+    if (data.success && data.result && data.result.display_name) {
+      document.getElementById('f-address').value = data.result.display_name;
     }
   } catch (err) {
-    console.error('Reverse geocode error:', err);
+    console.error('Geocode reverse error:', err);
   }
 }
 
@@ -347,11 +348,18 @@ addressInput.addEventListener('input', () => {
     statusEl.style.display = 'none';
     try {
       const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&addressdetails=1`,
-        { headers: { 'Accept-Language': 'uk,ru,en' } }
+        `${API_BASE}/ga/admin/geocode/search?q=${encodeURIComponent(query)}`,
+        { headers: authHeaders() }
       );
-      const results = await res.json();
-      if (!results || !results.length) {
+      if (!res.ok) {
+        console.error('Geocode search: HTTP', res.status);
+        statusEl.textContent = `Пошук недоступний (HTTP ${res.status})`;
+        statusEl.style.display = 'block';
+        hideSuggestions(); return;
+      }
+      const data = await res.json();
+      const results = data.results || [];
+      if (results.length === 0) {
         statusEl.textContent = 'Нічого не знайдено';
         statusEl.style.display = 'block';
         hideSuggestions(); return;
@@ -372,7 +380,7 @@ addressInput.addEventListener('input', () => {
       });
       suggestionsBox.style.display = 'block';
     } catch (err) {
-      console.error('Address search error:', err);
+      console.error('Geocode search error:', err);
       statusEl.textContent = "Немає з'єднання з сервісом пошуку адрес";
       statusEl.style.display = 'block';
       hideSuggestions();
