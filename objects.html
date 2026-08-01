@@ -287,14 +287,13 @@ function updateCircle() {
 
 async function reverseGeocode(lat, lng) {
   try {
-    const res = await fetch('https://primary-production-4b93e.up.railway.app/webhook/geocode', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+    const res = await fetch(`${API_BASE}/ga/admin/geocode`, {
+      method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ lat, lon: lng })
     });
     const rd = await res.json();
-    const results = rd.results || rd;
-    if (results && results[0] && results[0].display_name) {
-      document.getElementById('f-address').value = results[0].display_name;
+    if (rd.success && rd.results && rd.results[0] && rd.results[0].display_name) {
+      document.getElementById('f-address').value = rd.results[0].display_name;
     }
   } catch (err) {
     console.error('Geocode reverse error:', err);
@@ -358,13 +357,13 @@ addressInput.addEventListener('input', () => {
     const statusEl = document.getElementById('address-status');
     statusEl.style.display = 'none';
     try {
-      const res = await fetch('https://primary-production-4b93e.up.railway.app/webhook/geocode', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+      const res = await fetch(`${API_BASE}/ga/admin/geocode`, {
+        method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ address: query })
       });
       const rd = await res.json();
-      const results = rd.results || rd;
-      if (!results || !results.length) {
+      const results = (rd.success && rd.results) || [];
+      if (!results.length) {
         statusEl.textContent = 'Нічого не знайдено';
         statusEl.style.display = 'block';
         hideSuggestions(); return;
