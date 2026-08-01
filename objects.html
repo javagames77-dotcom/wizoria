@@ -53,6 +53,9 @@ body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var
 .form-field input, .form-field select{width:100%;height:32px;border:1px solid var(--accent);border-radius:6px;background:var(--bg2);padding:0 10px;font-size:12px;font-family:inherit;color:var(--text);outline:none}
 .form-field input:focus, .form-field select:focus{box-shadow:0 0 0 3px var(--accent-light)}
 #map{height:180px;border:1px solid var(--border);border-radius:7px;margin-bottom:10px;background:var(--bg3)}
+.suggestion-item{padding:8px 10px;font-size:11px;color:var(--text);cursor:pointer;border-bottom:1px solid var(--border)}
+.suggestion-item:last-child{border-bottom:none}
+.suggestion-item:hover{background:var(--accent-light)}
 .range-row{display:flex;align-items:center;gap:8px}
 .range-row input[type=range]{flex:1;accent-color:var(--accent)}
 .range-val{font-size:11px;font-weight:600;color:var(--accent);min-width:40px}
@@ -147,9 +150,10 @@ tr:last-child td{border-bottom:none}
         </div>
       </div>
 
-      <div class="form-field" style="margin-bottom:10px">
+      <div class="form-field" style="margin-bottom:10px;position:relative">
         <label>Адреса</label>
-        <input type="text" id="f-address" placeholder="вул. Європейська 60А, Полтава">
+        <input type="text" id="f-address" placeholder="вул. Європейська 60А, Полтава" autocomplete="off">
+        <div id="address-suggestions" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--bg2);border:1px solid var(--border);border-radius:7px;box-shadow:var(--card-shadow);z-index:20;max-height:180px;overflow-y:auto;margin-top:3px"></div>
       </div>
 
       <div id="map"></div>
@@ -199,29 +203,115 @@ tr:last-child td{border-bottom:none}
 <script>
 const API_BASE = 'https://primary-production-4b93e.up.railway.app/webhook';
 let token = null;
-let leafletMap = null, marker = null;
-let selectedLat = 49.5883, selectedLng = 34.5514; // Полтава — центр за замовчуванням
-
 function authHeaders() { return { 'Authorization': 'Bearer ' + token }; }
+let leafletMap = null, marker = null, geoCircle = null;
+let selectedLat = 49.5883, selectedLng = 34.5514; // Полтава — центр за замовчуванням
+let addressDebounce = null;
+let suppressNextGeocode = false; // щоб не запускати зворотний геокодинг одразу після вибору підказки
+
+function currentRadius() {
+  return Number(document.getElementById('f-radius').value);
+}
+
+function updateCircle() {
+  if (!geoCircle) return;
+  geoCircle.setLatLng([selectedLat, selectedLng]);
+  geoCircle.setRadius(currentRadius());
+}
+
+async function reverseGeocode(lat, lng) {
+  try {
+    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=uk`);
+    const data = await res.json();
+    if (data && data.display_name) {
+      document.getElementById('f-address').value = data.display_name;
+    }
+  } catch (err) {
+    // мовчки ігноруємо — геокодинг не критичний для збереження об'єкту
+  }
+}
+
+function movePinTo(lat, lng) {
+  selectedLat = lat; selectedLng = lng;
+  marker.setLatLng([lat, lng]);
+  leafletMap.setView([lat, lng], leafletMap.getZoom());
+  updateCircle();
+}
 
 function initMap() {
   leafletMap = L.map('map').setView([selectedLat, selectedLng], 13);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap', maxZoom: 18
   }).addTo(leafletMap);
+
   marker = L.marker([selectedLat, selectedLng], { draggable: true }).addTo(leafletMap);
+  geoCircle = L.circle([selectedLat, selectedLng], {
+    radius: currentRadius(), color: '#8C64C9', fillColor: '#8C64C9', fillOpacity: 0.12, weight: 1.5
+  }).addTo(leafletMap);
+
   marker.on('dragend', () => {
     const p = marker.getLatLng();
     selectedLat = p.lat; selectedLng = p.lng;
+    updateCircle();
+    reverseGeocode(selectedLat, selectedLng);
   });
+
   leafletMap.on('click', (e) => {
     selectedLat = e.latlng.lat; selectedLng = e.latlng.lng;
     marker.setLatLng(e.latlng);
+    updateCircle();
+    reverseGeocode(selectedLat, selectedLng);
   });
 }
 
 document.getElementById('f-radius').addEventListener('input', (e) => {
   document.getElementById('f-radius-val').textContent = e.target.value + 'м';
+  updateCircle();
+});
+
+// --- Автокомплит адреси (Nominatim search) ---
+const addressInput = document.getElementById('f-address');
+const suggestionsBox = document.getElementById('address-suggestions');
+
+function hideSuggestions() {
+  suggestionsBox.style.display = 'none';
+  suggestionsBox.innerHTML = '';
+}
+
+addressInput.addEventListener('input', () => {
+  if (suppressNextGeocode) { suppressNextGeocode = false; return; }
+  clearTimeout(addressDebounce);
+  const query = addressInput.value.trim();
+  if (query.length < 4) { hideSuggestions(); return; }
+
+  addressDebounce = setTimeout(async () => {
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&accept-language=uk&limit=5`);
+      const results = await res.json();
+      if (!results || results.length === 0) { hideSuggestions(); return; }
+
+      suggestionsBox.innerHTML = '';
+      results.forEach(r => {
+        const item = document.createElement('div');
+        item.className = 'suggestion-item';
+        item.textContent = r.display_name;
+        item.addEventListener('click', () => {
+          suppressNextGeocode = true;
+          addressInput.value = r.display_name;
+          if (leafletMap) movePinTo(Number(r.lat), Number(r.lon));
+          hideSuggestions();
+        });
+        suggestionsBox.appendChild(item);
+      });
+      suggestionsBox.style.display = 'block';
+    } catch (err) {
+      hideSuggestions();
+    }
+  }, 450);
+});
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#address-suggestions') && e.target !== addressInput) hideSuggestions();
 });
 
 document.getElementById('toggle-form-btn').addEventListener('click', () => {
