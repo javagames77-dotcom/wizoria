@@ -496,7 +496,10 @@ function renderDetail(){
   `;
   renderDialoguePanel(null);
   const mainAudioEl = document.getElementById('mainAudio');
-  if(mainAudioEl) mainAudioEl.addEventListener('play', ()=>renderDialoguePanel(null));
+  if(mainAudioEl){
+    lastActiveIdx = -1;
+    mainAudioEl.addEventListener('timeupdate', onAudioTimeUpdate);
+  }
 }
 
 async function submitDecision(decision){
@@ -510,6 +513,8 @@ async function submitDecision(decision){
 
 // Будує панель "Діалог" -- ЗАВЖДИ повний текст по ролях (не тільки при кліку на цитату).
 // highlightCriterion, якщо переданий (клік по цитаті), підсвічує репліку з найближчим таймкодом.
+let currentDialogueLines = null; // масив {speaker,text,start,end} поточного запису, для сінхронізації з аудіо
+
 function renderDialoguePanel(highlightCriterion){
   const audio = (currentDetail.audio||[])[0];
   let body = `<div style="padding:8px 12px;border-bottom:0.5px solid var(--border);display:flex;justify-content:space-between;align-items:center">
@@ -518,23 +523,23 @@ function renderDialoguePanel(highlightCriterion){
 
   let dlg = audio ? audio.dialogue : null;
   if(typeof dlg === 'string'){ try{ dlg = JSON.parse(dlg); }catch(e){ dlg = null; } }
+  currentDialogueLines = (Array.isArray(dlg) && dlg.length) ? dlg : null;
 
   body += `<div style="padding:10px 12px;display:flex;flex-direction:column;gap:8px">`;
-  if(Array.isArray(dlg) && dlg.length){
-    dlg.forEach((line, i)=>{
+  if(currentDialogueLines){
+    currentDialogueLines.forEach((line, i)=>{
       const isClient = /клієнт|client/i.test(line.speaker||'');
-      const isHighlight = highlightCriterion && highlightCriterion.timestamp_start!==null && highlightCriterion.timestamp_start!==undefined
-        && line.start!==undefined && Math.abs(Number(line.start) - Number(highlightCriterion.timestamp_start)) < 3;
-      const ring = isHighlight ? 'box-shadow:0 0 0 2px var(--accent);' : '';
+      const hasTime = line.start !== undefined && line.start !== null;
+      const clickable = hasTime ? `onclick="seekAndPlay(${i})" style="cursor:pointer"` : '';
       if(isClient){
-        body += `<div id="dlgLine${i}" style="display:flex;flex-direction:column;align-items:flex-end">
-          <div style="font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:3px">${escapeHtml(line.speaker||'Клієнт')}</div>
-          <div style="max-width:78%;background:var(--accent);padding:6px 9px;border-radius:7px 0 7px 7px;font-size:11px;line-height:1.5;color:#fff;${ring}">${escapeHtml(line.text||'')}</div>
+        body += `<div id="dlgLine${i}" data-start="${hasTime?line.start:''}" style="display:flex;flex-direction:column;align-items:flex-end">
+          <div style="font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:3px">${escapeHtml(line.speaker||'Клієнт')}${hasTime?' · '+formatTime(line.start):''}</div>
+          <div ${clickable} class="dlg-bubble" style="max-width:78%;background:var(--accent);padding:6px 9px;border-radius:7px 0 7px 7px;font-size:11px;line-height:1.5;color:#fff;transition:box-shadow .15s">${escapeHtml(line.text||'')}</div>
         </div>`;
       } else {
-        body += `<div id="dlgLine${i}">
-          <div style="font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);margin-bottom:3px">${escapeHtml(line.speaker||'Персонал')}</div>
-          <div style="max-width:78%;background:var(--bg3);padding:6px 9px;border-radius:0 7px 7px 7px;font-size:11px;line-height:1.5;color:var(--text);${ring}">${escapeHtml(line.text||'')}</div>
+        body += `<div id="dlgLine${i}" data-start="${hasTime?line.start:''}">
+          <div style="font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);margin-bottom:3px">${escapeHtml(line.speaker||'Персонал')}${hasTime?' · '+formatTime(line.start):''}</div>
+          <div ${clickable} class="dlg-bubble" style="max-width:78%;background:var(--bg3);padding:6px 9px;border-radius:0 7px 7px 7px;font-size:11px;line-height:1.5;color:var(--text);transition:box-shadow .15s">${escapeHtml(line.text||'')}</div>
         </div>`;
       }
     });
@@ -549,14 +554,70 @@ function renderDialoguePanel(highlightCriterion){
   body += `</div>`;
 
   document.getElementById('dialogPanel').innerHTML = body;
+
+  if(highlightCriterion) highlightByCriterion(highlightCriterion);
+}
+
+function formatTime(sec){
+  sec = Math.round(Number(sec));
+  return String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0');
+}
+
+// Клік по репліці/цитаті -- перемотує головний аудіоплеєр на її таймкод і вмикає відтворення
+function seekAndPlay(idx){
+  const line = currentDialogueLines && currentDialogueLines[idx];
+  const audioEl = document.getElementById('mainAudio');
+  if(!line || !audioEl || line.start===undefined || line.start===null) return;
+  audioEl.currentTime = Number(line.start);
+  audioEl.play();
+  setActiveLine(idx);
+}
+
+function setActiveLine(idx){
+  document.querySelectorAll('.dlg-bubble').forEach(el=>{ el.style.boxShadow = 'none'; });
+  const line = document.getElementById('dlgLine'+idx);
+  if(line){
+    const bubble = line.querySelector('.dlg-bubble');
+    if(bubble) bubble.style.boxShadow = '0 0 0 2px var(--accent)';
+    line.scrollIntoView({block:'nearest'});
+  }
+}
+
+// Клік по цитаті в таблиці критеріїв -- шукає найближчу репліку за таймкодом і перемотує на неї
+function highlightByCriterion(criterion){
+  if(!currentDialogueLines || criterion.timestamp_start===null || criterion.timestamp_start===undefined) return;
+  let bestIdx = -1, bestDiff = Infinity;
+  currentDialogueLines.forEach((line, i)=>{
+    if(line.start===undefined || line.start===null) return;
+    const diff = Math.abs(Number(line.start) - Number(criterion.timestamp_start));
+    if(diff < bestDiff){ bestDiff = diff; bestIdx = i; }
+  });
+  if(bestIdx >= 0) setActiveLine(bestIdx);
+}
+
+let lastActiveIdx = -1;
+function onAudioTimeUpdate(){
+  if(!currentDialogueLines) return;
+  const audioEl = document.getElementById('mainAudio');
+  if(!audioEl) return;
+  const t = audioEl.currentTime;
+  let idx = -1;
+  currentDialogueLines.forEach((line, i)=>{
+    if(line.start !== undefined && line.start !== null && Number(line.start) <= t) idx = i;
+  });
+  if(idx !== -1 && idx !== lastActiveIdx){
+    lastActiveIdx = idx;
+    setActiveLine(idx);
+  }
 }
 
 function openQuote(criterion){
   renderDialoguePanel(criterion);
-  const line = document.getElementById('dlgLine'+criterion.criterion_id);
-  const panel = document.getElementById('dialogPanel');
-  if(line) line.scrollIntoView({block:'center'});
-  else panel.scrollTop = 0;
+  const audioEl = document.getElementById('mainAudio');
+  if(audioEl && criterion.timestamp_start!==null && criterion.timestamp_start!==undefined){
+    audioEl.currentTime = Number(criterion.timestamp_start);
+    audioEl.play();
+  }
 }
 
 // ============================================================
