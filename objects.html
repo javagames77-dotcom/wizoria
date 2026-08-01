@@ -71,6 +71,8 @@ tr:last-child td{border-bottom:none}
 .obj-name{font-weight:500;color:var(--black)}
 .status-badge{font-size:10px;background:var(--success-bg);color:var(--success);border:1px solid var(--success-border);border-radius:4px;padding:2px 7px;font-weight:500;display:inline-flex;align-items:center;gap:3px}
 .edit-btn{border:1px solid var(--border);border-radius:5px;height:24px;padding:0 9px;display:inline-flex;align-items:center;font-size:10px;color:var(--muted);gap:4px;cursor:pointer;background:var(--bg2)}
+.delete-btn{border:1px solid var(--danger-border);border-radius:5px;height:24px;padding:0 9px;display:inline-flex;align-items:center;font-size:10px;color:var(--danger);gap:4px;cursor:pointer;background:var(--bg2);margin-left:5px}
+.delete-btn:hover{background:var(--danger-bg)}
 
 .rows-cards{display:none}
 .row-card{padding:12px 14px;border-bottom:1px solid var(--border)}
@@ -221,15 +223,26 @@ function updateCircle() {
 
 async function reverseGeocode(lat, lng) {
   try {
-    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=uk`);
-    if (!res.ok) { console.error('Nominatim reverse: HTTP', res.status); return; }
+    const res = await fetch(`https://photon.komoot.io/reverse?lon=${lng}&lat=${lat}&lang=uk`);
+    if (!res.ok) { console.error('Photon reverse: HTTP', res.status); return; }
     const data = await res.json();
-    if (data && data.display_name) {
-      document.getElementById('f-address').value = data.display_name;
+    const f = data && data.features && data.features[0];
+    if (f) {
+      document.getElementById('f-address').value = buildAddressLabel(f.properties);
     }
   } catch (err) {
-    console.error('Nominatim reverse geocode error:', err);
+    console.error('Photon reverse geocode error:', err);
   }
+}
+
+function buildAddressLabel(p) {
+  const parts = [];
+  if (p.street) parts.push(p.street + (p.housenumber ? ' ' + p.housenumber : ''));
+  else if (p.name) parts.push(p.name);
+  if (p.city) parts.push(p.city);
+  else if (p.county) parts.push(p.county);
+  if (p.country) parts.push(p.country);
+  return parts.join(', ');
 }
 
 function movePinTo(lat, lng) {
@@ -287,30 +300,33 @@ addressInput.addEventListener('input', () => {
 
   addressDebounce = setTimeout(async () => {
     try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&accept-language=uk&limit=5`);
-      if (!res.ok) { console.error('Nominatim search: HTTP', res.status); hideSuggestions(); return; }
-      const results = await res.json();
-      if (!results || results.length === 0) { hideSuggestions(); return; }
+      const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5&lang=uk`);
+      if (!res.ok) { console.error('Photon search: HTTP', res.status); hideSuggestions(); return; }
+      const data = await res.json();
+      const features = (data && data.features) || [];
+      if (features.length === 0) { hideSuggestions(); return; }
 
       suggestionsBox.innerHTML = '';
-      results.forEach(r => {
+      features.forEach(f => {
+        const label = buildAddressLabel(f.properties);
+        const [lon, lat] = f.geometry.coordinates;
         const item = document.createElement('div');
         item.className = 'suggestion-item';
-        item.textContent = r.display_name;
+        item.textContent = label;
         item.addEventListener('click', () => {
           suppressNextGeocode = true;
-          addressInput.value = r.display_name;
-          if (leafletMap) movePinTo(Number(r.lat), Number(r.lon));
+          addressInput.value = label;
+          if (leafletMap) movePinTo(lat, lon);
           hideSuggestions();
         });
         suggestionsBox.appendChild(item);
       });
       suggestionsBox.style.display = 'block';
     } catch (err) {
-      console.error('Nominatim search error:', err);
+      console.error('Photon search error:', err);
       hideSuggestions();
     }
-  }, 450);
+  }, 350);
 });
 
 document.addEventListener('click', (e) => {
@@ -417,7 +433,7 @@ async function loadObjects() {
         <td>${o.address || '—'}</td>
         <td>${supervisorName}</td>
         <td><span class="status-badge"><i class="ti ti-check"></i>${o.is_active ? 'Активний' : 'Неактивний'}</span></td>
-        <td style="text-align:right"><span class="edit-btn" data-object-id="${o.id}"><i class="ti ti-pencil"></i>Редагувати</span></td>
+        <td style="text-align:right"><span class="edit-btn" data-object-id="${o.id}"><i class="ti ti-pencil"></i>Редагувати</span><span class="delete-btn" data-object-id="${o.id}"><i class="ti ti-trash"></i>Видалити</span></td>
       </tr>
     `);
     cards.insertAdjacentHTML('beforeend', `
@@ -427,7 +443,7 @@ async function loadObjects() {
           <span class="status-badge"><i class="ti ti-check"></i>Активний</span>
         </div>
         <div class="row-card-meta">${o.address || '—'}<br>Supervisor: ${supervisorName}</div>
-        <div style="margin-top:8px"><span class="edit-btn" data-object-id="${o.id}"><i class="ti ti-pencil"></i>Редагувати</span></div>
+        <div style="margin-top:8px"><span class="edit-btn" data-object-id="${o.id}"><i class="ti ti-pencil"></i>Редагувати</span><span class="delete-btn" data-object-id="${o.id}"><i class="ti ti-trash"></i>Видалити</span></div>
       </div>
     `);
   });
@@ -435,6 +451,28 @@ async function loadObjects() {
   document.querySelectorAll('.edit-btn').forEach(btn => {
     btn.addEventListener('click', () => openFormForEdit(Number(btn.dataset.objectId)));
   });
+  document.querySelectorAll('.delete-btn').forEach(btn => {
+    btn.addEventListener('click', () => deleteObject(Number(btn.dataset.objectId), btn));
+  });
+}
+
+async function deleteObject(objectId, btnEl) {
+  const obj = allObjects.find(o => o.id === objectId);
+  const name = obj ? obj.name : `#${objectId}`;
+  if (!confirm(`Видалити об'єкт «${name}»? Об'єкт стане неактивним (дані анкет/завдань збережуться).`)) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/ga/admin/objects/delete`, {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ object_id: objectId })
+    });
+    const data = await res.json();
+    if (!data.success) { alert(data.error || 'Помилка видалення'); return; }
+    await loadObjects();
+  } catch (err) {
+    alert("Немає з'єднання з сервером");
+  }
 }
 
 let editingObjectId = null;
