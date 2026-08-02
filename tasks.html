@@ -524,16 +524,13 @@ document.getElementById('edit-add-audio-btn').addEventListener('click', () => {
 });
 
 document.getElementById('edit-add-questionnaire-btn').addEventListener('click', async () => {
-  // Анкети привʼязані до object_id завдання — беремо його з поточних деталей
-  const res = await fetch(`${API_BASE}/ga/admin/tasks/detail?task_id=${currentEditTaskId}`, { headers: authHeaders() });
-  const detail = await res.json();
-  const objId = detail.task.object_id;
-  const qRes = await fetch(`${API_BASE}/ga/admin/questionnaires?object_id=${objId}`, { headers: authHeaders() });
+  // Анкети — загальна база, не прив'язана до об'єкту завдання
+  const qRes = await fetch(`${API_BASE}/ga/admin/questionnaires`, { headers: authHeaders() });
   const qData = await qRes.json();
   const list = qData.questionnaires || [];
 
   if (list.length === 0) {
-    document.getElementById('edit-mini-form-slot').innerHTML = `<div class="mini-form"><div style="font-size:11px;color:var(--muted);margin-bottom:8px">Для цього об'єкту ще немає жодної анкети.</div><a href="questionnaires.html?object_id=${objId}" class="btn-primary btn-small" style="text-decoration:none;display:inline-flex"><i class="ti ti-list-check"></i>Створити анкету</a> <button class="btn-outline btn-small" id="emf-q-cancel">Закрити</button></div>`;
+    document.getElementById('edit-mini-form-slot').innerHTML = `<div class="mini-form"><div style="font-size:11px;color:var(--muted);margin-bottom:8px">У базі ще немає жодної анкети.</div><a href="questionnaires.html" class="btn-primary btn-small" style="text-decoration:none;display:inline-flex"><i class="ti ti-list-check"></i>Створити анкету</a> <button class="btn-outline btn-small" id="emf-q-cancel">Закрити</button></div>`;
     document.getElementById('emf-q-cancel').addEventListener('click', () => { document.getElementById('edit-mini-form-slot').innerHTML = ''; });
     return;
   }
@@ -737,14 +734,13 @@ document.getElementById('add-audio-btn').addEventListener('click', () => {
 });
 
 document.getElementById('add-questionnaire-btn').addEventListener('click', async () => {
-  const objId = Number(document.getElementById('f-object').value);
-  const res = await fetch(`${API_BASE}/ga/admin/questionnaires?object_id=${objId}`, { headers: authHeaders() });
+  const res = await fetch(`${API_BASE}/ga/admin/questionnaires`, { headers: authHeaders() });
   const data = await res.json();
   const list = data.questionnaires || [];
   const options = list.map(q => `<option value="${q.id}">${q.title} (${SECTION_NAMES[q.section_key] || q.section_key})</option>`).join('');
 
   if (list.length === 0) {
-    document.getElementById('mini-form-slot').innerHTML = `<div class="mini-form"><div style="font-size:11px;color:var(--muted)">Для цього об'єкту ще немає жодної анкети. Спочатку створіть її в конструкторі анкет.</div><div class="mini-form-actions" style="margin-top:8px"><button class="btn-outline btn-small" id="mf-q-cancel">Закрити</button></div></div>`;
+    document.getElementById('mini-form-slot').innerHTML = `<div class="mini-form"><div style="font-size:11px;color:var(--muted);margin-bottom:8px">У базі ще немає жодної анкети.</div><a href="questionnaires.html" class="btn-primary btn-small" style="text-decoration:none;display:inline-flex"><i class="ti ti-list-check"></i>Створити анкету</a> <button class="btn-outline btn-small" id="mf-q-cancel">Закрити</button></div>`;
     document.getElementById('mf-q-cancel').addEventListener('click', closeMiniForm);
     return;
   }
