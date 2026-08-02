@@ -787,8 +787,9 @@ document.getElementById('save-task-btn').addEventListener('click', async () => {
   btn.disabled = true; btn.textContent = 'Зберігаємо…';
 
   let saveResult = null;
+  let res = null;
   try {
-    const res = await fetch(`${API_BASE}/ga/admin/tasks`, {
+    res = await fetch(`${API_BASE}/ga/admin/tasks`, {
       method: 'POST',
       headers: { ...authHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -799,7 +800,6 @@ document.getElementById('save-task-btn').addEventListener('click', async () => {
         questionnaire_ids: questionnaireReqs.map(q => q.id)
       })
     });
-    saveResult = await res.json();
   } catch (err) {
     console.error('Task save network error:', err);
     document.getElementById('task-form-alert').textContent = "Немає з'єднання з сервером";
@@ -807,6 +807,23 @@ document.getElementById('save-task-btn').addEventListener('click', async () => {
     btn.disabled = false;
     btn.innerHTML = '<i class="ti ti-device-floppy"></i>Зберегти';
     return;
+  }
+
+  try {
+    saveResult = await res.json();
+  } catch (parseErr) {
+    // Порожнє тіло при HTTP-статусі 200/201 — завдання фактично зберігається на бекенді,
+    // просто відповідь не долітає повністю. Трактуємо як успіх, а не як помилку.
+    console.warn('Порожня відповідь при status', res.status, '— вважаємо збереження успішним');
+    if (res.ok) {
+      saveResult = { success: true };
+    } else {
+      document.getElementById('task-form-alert').textContent = `Помилка сервера (HTTP ${res.status})`;
+      document.getElementById('task-form-alert').className = 'alert err show';
+      btn.disabled = false;
+      btn.innerHTML = '<i class="ti ti-device-floppy"></i>Зберегти';
+      return;
+    }
   }
   btn.disabled = false;
   btn.innerHTML = '<i class="ti ti-device-floppy"></i>Зберегти';
