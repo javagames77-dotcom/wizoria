@@ -497,7 +497,7 @@ async function loadObjects() {
         <td>${o.address || '—'}</td>
         <td>${supervisorName}</td>
         <td><span class="status-badge"><i class="ti ti-check"></i>${o.is_active ? 'Активний' : 'Неактивний'}</span></td>
-        <td style="text-align:right"><span class="edit-btn" data-object-id="${o.id}"><i class="ti ti-pencil"></i>Редагувати</span><span class="delete-btn" data-object-id="${o.id}"><i class="ti ti-trash"></i>Видалити</span></td>
+        <td style="text-align:right"><a class="edit-btn" style="text-decoration:none" href="questionnaires.html?object_id=${o.id}"><i class="ti ti-list-check"></i>Анкети</a><span class="edit-btn" data-object-id="${o.id}"><i class="ti ti-pencil"></i>Редагувати</span><span class="delete-btn" data-object-id="${o.id}"><i class="ti ti-trash"></i>Видалити</span></td>
       </tr>
     `);
     cards.insertAdjacentHTML('beforeend', `
@@ -507,7 +507,7 @@ async function loadObjects() {
           <span class="status-badge"><i class="ti ti-check"></i>Активний</span>
         </div>
         <div class="row-card-meta">${o.address || '—'}<br>Supervisor: ${supervisorName}</div>
-        <div style="margin-top:8px"><span class="edit-btn" data-object-id="${o.id}"><i class="ti ti-pencil"></i>Редагувати</span><span class="delete-btn" data-object-id="${o.id}"><i class="ti ti-trash"></i>Видалити</span></div>
+        <div style="margin-top:8px"><a class="edit-btn" style="text-decoration:none" href="questionnaires.html?object_id=${o.id}"><i class="ti ti-list-check"></i>Анкети</a><span class="edit-btn" data-object-id="${o.id}"><i class="ti ti-pencil"></i>Редагувати</span><span class="delete-btn" data-object-id="${o.id}"><i class="ti ti-trash"></i>Видалити</span></div>
       </div>
     `);
   });
