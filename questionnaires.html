@@ -140,17 +140,13 @@ body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var
     <div class="main-head" style="margin-bottom:12px">
       <div>
         <div class="main-title" style="font-size:16px">Анкети</div>
-        <div class="main-sub" id="sb-current-obj">—</div>
-      </div>
-      <div class="form-field" style="min-width:220px">
-        <label>Об'єкт</label>
-        <select id="object-select"></select>
+        <div class="main-sub">Загальна база — підключаються до будь-якого завдання</div>
       </div>
     </div>
 
-    <div class="sb-label" style="margin-bottom:6px">Секції об'єкту</div>
+    <div class="sb-label" style="margin-bottom:6px">Усі анкети</div>
     <div id="section-tabs" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px"></div>
-    <div class="sb-new-section" id="new-section-btn" style="margin:0 0 16px;width:150px"><i class="ti ti-plus"></i><span>Нова секція</span></div>
+    <div class="sb-new-section" id="new-section-btn" style="margin:0 0 16px;width:150px"><i class="ti ti-plus"></i><span>Нова анкета</span></div>
 
     <div class="main-head">
       <div>
@@ -215,48 +211,17 @@ const SECTION_ICONS = { kasa: 'ti-building-bank', bar: 'ti-glass', tualet: 'ti-d
 const SECTION_NAMES = { kasa: 'Каса', bar: 'Бар', tualet: 'Туалет', zal: 'Зал', vhid: 'Вхід', vyhid: 'Вихід' };
 const ANSWER_TYPE_LABELS = { yes_no: 'Так / Ні', scale_1_5: 'Шкала 1–5', text: 'Текст' };
 
-let objectId = null;
 let questionnaires = [];
 let activeQuestionnaireId = null;
 let criteria = [];
 let dragSrcId = null;
-let allActiveObjects = [];
-
-function getObjectIdFromUrl() {
-  const params = new URLSearchParams(window.location.search);
-  return params.get('object_id');
-}
 
 async function loadObjectAndQuestionnaires() {
-  const objRes = await fetch(`${API_BASE}/ga/admin/objects`, { headers: authHeaders() });
-  const objData = await objRes.json();
-  allActiveObjects = (objData.objects || []).filter(o => o.is_active);
-  if (allActiveObjects.length === 0) throw new Error("Немає жодного активного об'єкту");
-
-  const urlObjectId = getObjectIdFromUrl();
-  objectId = urlObjectId && allActiveObjects.some(o => String(o.id) === String(urlObjectId))
-    ? urlObjectId
-    : allActiveObjects[0].id;
-
-  const select = document.getElementById('object-select');
-  select.innerHTML = '';
-  allActiveObjects.forEach(o => {
-    const opt = document.createElement('option');
-    opt.value = o.id; opt.textContent = o.name;
-    if (String(o.id) === String(objectId)) opt.selected = true;
-    select.appendChild(opt);
-  });
-  select.addEventListener('change', () => loadQuestionnairesForObject(select.value));
-
-  await loadQuestionnairesForObject(objectId);
+  await loadQuestionnaires();
 }
 
-async function loadQuestionnairesForObject(objId) {
-  objectId = objId;
-  const obj = allActiveObjects.find(o => String(o.id) === String(objId));
-  document.getElementById('sb-current-obj').textContent = obj ? obj.name : `Об'єкт #${objId}`;
-
-  const qRes = await fetch(`${API_BASE}/ga/admin/questionnaires?object_id=${objectId}`, { headers: authHeaders() });
+async function loadQuestionnaires() {
+  const qRes = await fetch(`${API_BASE}/ga/admin/questionnaires`, { headers: authHeaders() });
   const qData = await qRes.json();
   questionnaires = qData.questionnaires || [];
 
@@ -264,10 +229,11 @@ async function loadQuestionnairesForObject(objId) {
   renderSectionTabs();
 
   if (questionnaires.length > 0) {
-    await selectQuestionnaire(questionnaires[0].id);
+    const keepId = questionnaires.some(q => q.id === activeQuestionnaireId) ? activeQuestionnaireId : questionnaires[0].id;
+    await selectQuestionnaire(keepId);
   } else {
     activeQuestionnaireId = null;
-    document.getElementById('main-title').textContent = 'Немає жодної анкети для цього об\'єкту';
+    document.getElementById('main-title').textContent = 'Ще немає жодної анкети в базі';
     document.getElementById('q-empty').style.display = 'block';
     document.getElementById('q-list').innerHTML = '';
   }
@@ -282,7 +248,7 @@ function renderSectionTabs() {
     el.className = 'sb-item' + (q.id === activeQuestionnaireId ? ' active' : '');
     el.style.cssText = 'display:inline-flex;border-radius:6px;padding:6px 12px;cursor:pointer;background:var(--bg3)';
     if (q.id === activeQuestionnaireId) el.style.background = '';
-    el.innerHTML = `<i class="ti ${icon}"></i> ${SECTION_NAMES[q.section_key] || q.section_key}`;
+    el.innerHTML = `<i class="ti ${icon}"></i> ${q.title} <span style="opacity:.6;font-size:10px">(${SECTION_NAMES[q.section_key] || q.section_key})</span>`;
     el.addEventListener('click', () => selectQuestionnaire(q.id));
     wrap.appendChild(el);
   });
@@ -459,19 +425,13 @@ document.getElementById('add-question-btn').addEventListener('click', () => {
 });
 
 document.getElementById('new-section-btn').addEventListener('click', () => {
-  const usedKeys = questionnaires.map(q => q.section_key);
-  const available = Object.keys(SECTION_NAMES).filter(k => !usedKeys.includes(k));
-  if (available.length === 0) {
-    showAlertDialog('Усі 6 секцій вже додані для цього об\'єкту.', 'Немає доступних секцій');
-    return;
-  }
-  const options = available.map(k => `<option value="${k}">${SECTION_NAMES[k]}</option>`).join('');
+  const options = Object.keys(SECTION_NAMES).map(k => `<option value="${k}">${SECTION_NAMES[k]}</option>`).join('');
   document.getElementById('q-mini-form-slot').innerHTML = `
     <div class="mini-form">
-      <div class="mini-form-title">Нова секція</div>
+      <div class="mini-form-title">Нова анкета</div>
       <div class="form-row">
-        <div class="form-field"><label>Секція</label><select id="sf-key">${options}</select></div>
-        <div class="form-field"><label>Назва анкети</label><input type="text" id="sf-title" placeholder="Каса"></div>
+        <div class="form-field"><label>Секція (для AI-аналізу)</label><select id="sf-key">${options}</select></div>
+        <div class="form-field"><label>Назва анкети</label><input type="text" id="sf-title" placeholder="Каса — стандарт"></div>
       </div>
       <div class="mini-form-actions">
         <button class="btn-outline btn-small" id="sf-cancel">Скасувати</button>
@@ -486,12 +446,12 @@ document.getElementById('new-section-btn').addEventListener('click', () => {
     try {
       const res = await fetch(`${API_BASE}/ga/admin/questionnaires`, {
         method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ object_id: Number(objectId), section_key: document.getElementById('sf-key').value, title })
+        body: JSON.stringify({ section_key: document.getElementById('sf-key').value, title })
       });
       const data = await res.json();
       if (!data.success) { await showAlertDialog(data.error || 'Помилка', 'Помилка'); return; }
       document.getElementById('q-mini-form-slot').innerHTML = '';
-      const qRes = await fetch(`${API_BASE}/ga/admin/questionnaires?object_id=${objectId}`, { headers: authHeaders() });
+      const qRes = await fetch(`${API_BASE}/ga/admin/questionnaires`, { headers: authHeaders() });
       const qData = await qRes.json();
       questionnaires = qData.questionnaires || [];
       await selectQuestionnaire(data.questionnaire.id);
