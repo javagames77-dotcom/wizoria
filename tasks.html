@@ -240,6 +240,31 @@ tr:last-child td{border-bottom:none}
         <div class="field-err" id="err-requirements" style="margin-bottom:8px"></div>
       </div>
     </div>
+
+    <div id="edit-view" style="display:none">
+      <div class="add-form">
+        <div class="page-head" style="margin-bottom:2px">
+          <div>
+            <div class="add-form-title">Завдання #<span id="edit-task-id"></span></div>
+            <div class="add-form-sub" id="edit-task-sub">—</div>
+          </div>
+          <button class="btn-outline" id="edit-back-btn">Закрити</button>
+        </div>
+        <div class="alert err" id="edit-form-alert"></div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:12px">
+          Поля об'єкту/покупця/дедлайну незмінні після створення (бек цього поки не підтримує) — можна редагувати лише перелік вимог нижче.
+        </div>
+
+        <div class="section-label">Вимоги</div>
+        <div class="add-req-row">
+          <div class="add-req-btn" id="edit-add-photo-btn"><i class="ti ti-camera"></i>Фото</div>
+          <div class="add-req-btn" id="edit-add-audio-btn"><i class="ti ti-microphone"></i>Аудіо</div>
+          <div class="add-req-btn" id="edit-add-questionnaire-btn"><i class="ti ti-clipboard-list"></i>Анкета</div>
+        </div>
+        <div id="edit-mini-form-slot"></div>
+        <div id="edit-req-chips"></div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -347,24 +372,185 @@ async function loadTasks() {
   });
 
   document.querySelectorAll('[data-action="open"]').forEach(el => {
-    el.addEventListener('click', () => openTaskDetail(Number(el.dataset.taskId), tasks));
+    el.addEventListener('click', () => openTaskDetail(Number(el.dataset.taskId)));
   });
   document.querySelectorAll('[data-action="delete"]').forEach(el => {
     el.addEventListener('click', () => deleteTask(Number(el.dataset.taskId)));
   });
 }
 
-async function openTaskDetail(taskId, tasks) {
-  const t = tasks.find(x => x.id === taskId);
-  if (!t) return;
+let currentEditTaskId = null;
+const STATUS_LABELS = { assigned: 'Призначено', in_progress: 'В процесі', submitted: 'Очікує', approved: 'Здано', rejected: 'Відхилено', needs_revision: 'На доопрацюванні' };
+
+async function openTaskDetail(taskId) {
+  currentEditTaskId = taskId;
+  document.getElementById('list-view').style.display = 'none';
+  document.getElementById('form-view').style.display = 'none';
+  document.getElementById('edit-view').style.display = 'block';
+  document.getElementById('edit-task-id').textContent = taskId;
+  document.getElementById('edit-form-alert').className = 'alert err';
+  await reloadEditView();
+}
+
+async function reloadEditView() {
+  const res = await fetch(`${API_BASE}/ga/admin/tasks/detail?task_id=${currentEditTaskId}`, { headers: authHeaders() });
+  const data = await res.json();
+  if (!data.success) {
+    document.getElementById('edit-form-alert').textContent = data.error || 'Помилка завантаження';
+    document.getElementById('edit-form-alert').className = 'alert err show';
+    return;
+  }
+  const t = data.task;
   const deadlineStr = new Date(t.deadline).toLocaleDateString('uk-UA');
-  const statusLabels = { assigned: 'Призначено', in_progress: 'В процесі', submitted: 'Очікує', approved: 'Здано', rejected: 'Відхилено', needs_revision: 'На доопрацюванні' };
-  await showModal({
-    icon: '📋', title: `Завдання #${t.id}`,
-    message: `Об'єкт: ${t.object_name}\nПокупець: ${t.shopper_first_name} ${t.shopper_last_name}\nДедлайн: ${deadlineStr}\nСтатус: ${statusLabels[t.status] || t.status}`,
-    buttons: [{ label: 'Закрити', value: true }]
+  document.getElementById('edit-task-sub').textContent = `${t.object_name} · ${t.shopper_first_name} ${t.shopper_last_name} · Дедлайн: ${deadlineStr} · ${STATUS_LABELS[t.status] || t.status}`;
+
+  const wrap = document.getElementById('edit-req-chips');
+  wrap.innerHTML = '';
+  (data.photo_requirements || []).forEach(r => {
+    wrap.insertAdjacentHTML('beforeend', `
+      <div class="req-chip"><i class="ti ti-camera type-icon" style="color:var(--accent)"></i>
+        <span class="chip-title">${r.title}</span><span class="chip-meta">${r.required_count} фото</span>
+        <span class="chip-remove" data-kind="photo" data-id="${r.id}"><i class="ti ti-x"></i></span></div>
+    `);
+  });
+  (data.audio_requirements || []).forEach(r => {
+    wrap.insertAdjacentHTML('beforeend', `
+      <div class="req-chip"><i class="ti ti-microphone type-icon" style="color:var(--warn-text)"></i>
+        <span class="chip-title">${r.title}</span><span class="chip-meta">мін. ${r.min_duration_sec} сек</span>
+        <span class="chip-remove" data-kind="audio" data-id="${r.id}"><i class="ti ti-x"></i></span></div>
+    `);
+  });
+  (data.questionnaires || []).forEach(r => {
+    wrap.insertAdjacentHTML('beforeend', `
+      <div class="req-chip"><i class="ti ti-clipboard-list type-icon" style="color:var(--success)"></i>
+        <span class="chip-title">${r.title}</span><span class="chip-meta">${SECTION_NAMES[r.section_key] || r.section_key}</span>
+        <span class="chip-remove" data-kind="questionnaire" data-id="${r.id}"><i class="ti ti-x"></i></span></div>
+    `);
+  });
+
+  wrap.querySelectorAll('.chip-remove').forEach(el => {
+    el.addEventListener('click', () => removeExistingRequirement(el.dataset.kind, Number(el.dataset.id)));
   });
 }
+
+async function removeExistingRequirement(kind, requirementId) {
+  const ok = await showModal({
+    icon: '⚠️', title: 'Видалення вимоги', message: 'Видалити цю вимогу із завдання?',
+    buttons: [{ label: 'Скасувати', value: false, variant: 'outline' }, { label: 'Так, видалити', value: true, variant: 'danger' }]
+  });
+  if (!ok) return;
+  try {
+    const res = await fetch(`${API_BASE}/ga/admin/tasks/requirements/remove`, {
+      method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind, requirement_id: requirementId })
+    });
+    const data = await res.json();
+    if (!data.success) { await showAlertDialog(data.error || 'Помилка', 'Помилка'); return; }
+    await reloadEditView();
+  } catch (err) {
+    await showAlertDialog("Немає з'єднання з сервером", 'Помилка');
+  }
+}
+
+async function addRequirementToTask(kind, payload) {
+  try {
+    const res = await fetch(`${API_BASE}/ga/admin/tasks/requirements/add`, {
+      method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ task_id: currentEditTaskId, kind, ...payload })
+    });
+    const data = await res.json();
+    if (!data.success) { await showAlertDialog(data.error || 'Помилка', 'Помилка'); return; }
+    document.getElementById('edit-mini-form-slot').innerHTML = '';
+    await reloadEditView();
+  } catch (err) {
+    await showAlertDialog("Немає з'єднання з сервером", 'Помилка');
+  }
+}
+
+document.getElementById('edit-back-btn').addEventListener('click', () => {
+  document.getElementById('edit-view').style.display = 'none';
+  showListView();
+});
+
+document.getElementById('edit-add-photo-btn').addEventListener('click', () => {
+  document.getElementById('edit-mini-form-slot').innerHTML = `
+    <div class="mini-form">
+      <div class="form-row">
+        <div class="form-field"><label>Назва</label><input type="text" id="emf-photo-title" placeholder="Фото туалету"></div>
+        <div class="form-field"><label>К-сть фото</label><input type="number" id="emf-photo-count" value="1" min="1"></div>
+      </div>
+      <div class="form-field" style="margin-bottom:8px"><label>Опис (необов'язково)</label><input type="text" id="emf-photo-desc"></div>
+      <div class="mini-form-actions">
+        <button class="btn-outline btn-small" id="emf-photo-cancel">Скасувати</button>
+        <button class="btn-primary btn-small" id="emf-photo-add">Додати</button>
+      </div>
+    </div>`;
+  document.getElementById('emf-photo-cancel').addEventListener('click', () => { document.getElementById('edit-mini-form-slot').innerHTML = ''; });
+  document.getElementById('emf-photo-add').addEventListener('click', () => {
+    const title = document.getElementById('emf-photo-title').value.trim();
+    if (!title) return;
+    addRequirementToTask('photo', { title, description: document.getElementById('emf-photo-desc').value.trim(), required_count: Number(document.getElementById('emf-photo-count').value) || 1 });
+  });
+});
+
+document.getElementById('edit-add-audio-btn').addEventListener('click', () => {
+  const options = Object.entries(SECTION_NAMES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+  document.getElementById('edit-mini-form-slot').innerHTML = `
+    <div class="mini-form">
+      <div class="form-row">
+        <div class="form-field"><label>Назва</label><input type="text" id="emf-audio-title" placeholder="Аудіозапис бару"></div>
+        <div class="form-field"><label>Секція</label><select id="emf-audio-section">${options}</select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-field"><label>Мін. тривалість (сек)</label><input type="number" id="emf-audio-duration" value="30" min="1"></div>
+        <div class="form-field"><label>Інструкція (необов'язково)</label><input type="text" id="emf-audio-instr"></div>
+      </div>
+      <div class="mini-form-actions">
+        <button class="btn-outline btn-small" id="emf-audio-cancel">Скасувати</button>
+        <button class="btn-primary btn-small" id="emf-audio-add">Додати</button>
+      </div>
+    </div>`;
+  document.getElementById('emf-audio-cancel').addEventListener('click', () => { document.getElementById('edit-mini-form-slot').innerHTML = ''; });
+  document.getElementById('emf-audio-add').addEventListener('click', () => {
+    const title = document.getElementById('emf-audio-title').value.trim();
+    if (!title) return;
+    addRequirementToTask('audio', {
+      title, section_key: document.getElementById('emf-audio-section').value,
+      min_duration_sec: Number(document.getElementById('emf-audio-duration').value) || 30,
+      instruction: document.getElementById('emf-audio-instr').value.trim()
+    });
+  });
+});
+
+document.getElementById('edit-add-questionnaire-btn').addEventListener('click', async () => {
+  // Анкети привʼязані до object_id завдання — беремо його з поточних деталей
+  const res = await fetch(`${API_BASE}/ga/admin/tasks/detail?task_id=${currentEditTaskId}`, { headers: authHeaders() });
+  const detail = await res.json();
+  const objId = detail.task.object_id;
+  const qRes = await fetch(`${API_BASE}/ga/admin/questionnaires?object_id=${objId}`, { headers: authHeaders() });
+  const qData = await qRes.json();
+  const list = qData.questionnaires || [];
+
+  if (list.length === 0) {
+    document.getElementById('edit-mini-form-slot').innerHTML = `<div class="mini-form"><div style="font-size:11px;color:var(--muted)">Для цього об'єкту ще немає жодної анкети.</div><div class="mini-form-actions" style="margin-top:8px"><button class="btn-outline btn-small" id="emf-q-cancel">Закрити</button></div></div>`;
+    document.getElementById('emf-q-cancel').addEventListener('click', () => { document.getElementById('edit-mini-form-slot').innerHTML = ''; });
+    return;
+  }
+  const options = list.map(q => `<option value="${q.id}">${q.title} (${SECTION_NAMES[q.section_key] || q.section_key})</option>`).join('');
+  document.getElementById('edit-mini-form-slot').innerHTML = `
+    <div class="mini-form">
+      <div class="form-field" style="margin-bottom:8px"><label>Анкета</label><select id="emf-q-select">${options}</select></div>
+      <div class="mini-form-actions">
+        <button class="btn-outline btn-small" id="emf-q-cancel">Скасувати</button>
+        <button class="btn-primary btn-small" id="emf-q-add">Додати</button>
+      </div>
+    </div>`;
+  document.getElementById('emf-q-cancel').addEventListener('click', () => { document.getElementById('edit-mini-form-slot').innerHTML = ''; });
+  document.getElementById('emf-q-add').addEventListener('click', () => {
+    const qId = Number(document.getElementById('emf-q-select').value);
+    addRequirementToTask('questionnaire', { questionnaire_id: qId });
+  });
+});
 
 async function deleteTask(taskId) {
   const ok = await showModal({
@@ -446,6 +632,7 @@ function resetTaskForm() {
 function showListView() {
   document.getElementById('list-view').style.display = 'block';
   document.getElementById('form-view').style.display = 'none';
+  document.getElementById('edit-view').style.display = 'none';
   loadTasks();
 }
 async function showFormView() {
