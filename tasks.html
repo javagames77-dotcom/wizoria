@@ -325,7 +325,10 @@ async function loadTasks() {
         <td><div class="req-icons"><i class="ti ti-camera" style="color:var(--accent)"></i><i class="ti ti-microphone" style="color:var(--warn-text)"></i><i class="ti ti-clipboard-list" style="color:var(--success)"></i></div></td>
         <td>${deadlineStr}</td>
         <td><span class="status-badge ${t.status}">${statusText}</span></td>
-        <td style="text-align:right"><span class="open-btn"><i class="ti ti-eye"></i>${openText}</span></td>
+        <td style="text-align:right">
+          <span class="open-btn" data-task-id="${t.id}" data-action="open"><i class="ti ti-eye"></i>${openText}</span>
+          ${t.status === 'assigned' ? `<span class="open-btn" style="color:var(--danger);border-color:var(--danger-border);margin-left:5px" data-task-id="${t.id}" data-action="delete"><i class="ti ti-trash"></i>Видалити</span>` : ''}
+        </td>
       </tr>
     `);
     cards.insertAdjacentHTML('beforeend', `
@@ -335,9 +338,54 @@ async function loadTasks() {
           <span class="status-badge ${t.status}">${statusText}</span>
         </div>
         <div class="row-card-meta">${t.shopper_first_name} ${t.shopper_last_name}<br>Дедлайн: ${deadlineStr}</div>
+        <div style="margin-top:8px">
+          <span class="open-btn" data-task-id="${t.id}" data-action="open"><i class="ti ti-eye"></i>${openText}</span>
+          ${t.status === 'assigned' ? `<span class="open-btn" style="color:var(--danger);border-color:var(--danger-border);margin-left:5px" data-task-id="${t.id}" data-action="delete"><i class="ti ti-trash"></i>Видалити</span>` : ''}
+        </div>
       </div>
     `);
   });
+
+  document.querySelectorAll('[data-action="open"]').forEach(el => {
+    el.addEventListener('click', () => openTaskDetail(Number(el.dataset.taskId), tasks));
+  });
+  document.querySelectorAll('[data-action="delete"]').forEach(el => {
+    el.addEventListener('click', () => deleteTask(Number(el.dataset.taskId)));
+  });
+}
+
+async function openTaskDetail(taskId, tasks) {
+  const t = tasks.find(x => x.id === taskId);
+  if (!t) return;
+  const deadlineStr = new Date(t.deadline).toLocaleDateString('uk-UA');
+  const statusLabels = { assigned: 'Призначено', in_progress: 'В процесі', submitted: 'Очікує', approved: 'Здано', rejected: 'Відхилено', needs_revision: 'На доопрацюванні' };
+  await showModal({
+    icon: '📋', title: `Завдання #${t.id}`,
+    message: `Об'єкт: ${t.object_name}\nПокупець: ${t.shopper_first_name} ${t.shopper_last_name}\nДедлайн: ${deadlineStr}\nСтатус: ${statusLabels[t.status] || t.status}`,
+    buttons: [{ label: 'Закрити', value: true }]
+  });
+}
+
+async function deleteTask(taskId) {
+  const ok = await showModal({
+    icon: '⚠️', title: 'Видалення завдання',
+    message: `Видалити завдання #${taskId}? Дія незворотна.`,
+    buttons: [{ label: 'Скасувати', value: false, variant: 'outline' }, { label: 'Так, видалити', value: true, variant: 'danger' }]
+  });
+  if (!ok) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/ga/admin/tasks/delete`, {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ task_id: taskId })
+    });
+    const data = await res.json();
+    if (!data.success) { await showAlertDialog(data.error || 'Помилка видалення', 'Помилка'); return; }
+    await loadTasks();
+  } catch (err) {
+    await showAlertDialog("Немає з'єднання з сервером", 'Помилка');
+  }
 }
 
 // ============ FORM VIEW ============
@@ -505,7 +553,7 @@ document.getElementById('add-questionnaire-btn').addEventListener('click', async
   const res = await fetch(`${API_BASE}/ga/admin/questionnaires?object_id=${objId}`, { headers: authHeaders() });
   const data = await res.json();
   const list = data.questionnaires || [];
-  const options = list.map(q => `<option value="${q.id}">${SECTION_NAMES[q.section_key] || q.section_key} — ${q.title}</option>`).join('');
+  const options = list.map(q => `<option value="${q.id}">${q.title} (${SECTION_NAMES[q.section_key] || q.section_key})</option>`).join('');
 
   if (list.length === 0) {
     document.getElementById('mini-form-slot').innerHTML = `<div class="mini-form"><div style="font-size:11px;color:var(--muted)">Для цього об'єкту ще немає жодної анкети. Спочатку створіть її в конструкторі анкет.</div><div class="mini-form-actions" style="margin-top:8px"><button class="btn-outline btn-small" id="mf-q-cancel">Закрити</button></div></div>`;
@@ -551,6 +599,7 @@ document.getElementById('save-task-btn').addEventListener('click', async () => {
   const btn = document.getElementById('save-task-btn');
   btn.disabled = true; btn.textContent = 'Зберігаємо…';
 
+  let saveResult = null;
   try {
     const res = await fetch(`${API_BASE}/ga/admin/tasks`, {
       method: 'POST',
@@ -563,20 +612,30 @@ document.getElementById('save-task-btn').addEventListener('click', async () => {
         questionnaire_ids: questionnaireReqs.map(q => q.id)
       })
     });
-    const data = await res.json();
-    if (!data.success) {
-      document.getElementById('task-form-alert').textContent = data.error || 'Помилка';
-      document.getElementById('task-form-alert').className = 'alert err show';
-      return;
-    }
+    saveResult = await res.json();
+  } catch (err) {
+    console.error('Task save network error:', err);
+    document.getElementById('task-form-alert').textContent = "Немає з'єднання з сервером";
+    document.getElementById('task-form-alert').className = 'alert err show';
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ti ti-device-floppy"></i>Зберегти';
+    return;
+  }
+  btn.disabled = false;
+  btn.innerHTML = '<i class="ti ti-device-floppy"></i>Зберегти';
+
+  if (!saveResult || !saveResult.success) {
+    document.getElementById('task-form-alert').textContent = (saveResult && saveResult.error) || 'Помилка збереження';
+    document.getElementById('task-form-alert').className = 'alert err show';
+    return;
+  }
+
+  // Збереження точно успішне — далі йде лише UI-навігація, окремо від мережевої помилки
+  try {
     await showAlertDialog('Завдання успішно створено.', 'Готово');
     showListView();
   } catch (err) {
-    document.getElementById('task-form-alert').textContent = "Немає з'єднання з сервером";
-    document.getElementById('task-form-alert').className = 'alert err show';
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = '<i class="ti ti-device-floppy"></i>Зберегти';
+    console.error('Post-save UI error (завдання вже збережено):', err);
   }
 });
 
