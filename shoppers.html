@@ -551,7 +551,19 @@ function renderSupervisorObjects() {
         buttons: [{ label: 'Скасувати', value: false, variant: 'outline' }, { label: 'Так', value: true, variant: 'danger' }]
       });
       if (!ok) return;
-      await showAlertDialog("Видалення призначення supervisor'а з об'єкту поки не підтримується окремим бекенд-ендпоінтом (є лише створення) — це чесно показано, а не приховано.", 'Обмеження бекенду');
+      try {
+        const res = await fetch(`${API_BASE}/ga/admin/supervisor-objects/remove`, {
+          method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ supervisor_id: u.id, object_id: Number(el.dataset.objectId) })
+        });
+        const data = await res.json();
+        if (!data.success) { await showAlertDialog(data.error || 'Помилка видалення', 'Помилка'); return; }
+        await loadSupervisorAssignmentsAll();
+        await renderSupervisorDetail();
+        await loadUsers();
+      } catch (err) {
+        await showAlertDialog("Немає з'єднання з сервером", 'Помилка');
+      }
     });
   });
 }
