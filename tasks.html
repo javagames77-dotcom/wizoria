@@ -146,6 +146,7 @@ tr:last-child td{border-bottom:none}
     <div class="sb-label">Меню</div>
     <a class="sb-item" href="dashboard.html"><i class="ti ti-layout-dashboard"></i>Dashboard</a>
     <a class="sb-item active" href="tasks.html"><i class="ti ti-clipboard-list"></i>Завдання</a>
+    <a class="sb-item" href="questionnaires.html"><i class="ti ti-list-check"></i>Анкети</a>
     <a class="sb-item" href="shoppers.html"><i class="ti ti-users"></i>Покупці</a>
     <a class="sb-item" href="objects.html"><i class="ti ti-building"></i>Об'єкти</a>
     <a class="sb-item" href="reports.html"><i class="ti ti-chart-bar"></i>Звіти</a>
@@ -532,7 +533,7 @@ document.getElementById('edit-add-questionnaire-btn').addEventListener('click', 
   const list = qData.questionnaires || [];
 
   if (list.length === 0) {
-    document.getElementById('edit-mini-form-slot').innerHTML = `<div class="mini-form"><div style="font-size:11px;color:var(--muted)">Для цього об'єкту ще немає жодної анкети.</div><div class="mini-form-actions" style="margin-top:8px"><button class="btn-outline btn-small" id="emf-q-cancel">Закрити</button></div></div>`;
+    document.getElementById('edit-mini-form-slot').innerHTML = `<div class="mini-form"><div style="font-size:11px;color:var(--muted);margin-bottom:8px">Для цього об'єкту ще немає жодної анкети.</div><a href="questionnaires.html?object_id=${objId}" class="btn-primary btn-small" style="text-decoration:none;display:inline-flex"><i class="ti ti-list-check"></i>Створити анкету</a> <button class="btn-outline btn-small" id="emf-q-cancel">Закрити</button></div>`;
     document.getElementById('emf-q-cancel').addEventListener('click', () => { document.getElementById('edit-mini-form-slot').innerHTML = ''; });
     return;
   }
