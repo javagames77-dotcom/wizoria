@@ -62,7 +62,20 @@ table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}
 th{text-align:left;padding:8px;font-weight:500;font-size:10px;color:var(--muted2);border-bottom:1px solid var(--border)}
 td{padding:9px 8px;border-bottom:1px solid var(--border);color:var(--muted)}
 tr:last-child td{border-bottom:none}
-.avatar{width:28px;height:28px;border-radius:50%;background:var(--accent-light);display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;color:var(--accent);flex-shrink:0}
+.avatar{width:28px;height:28px;border-radius:50%;background:var(--accent-light);display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;color:var(--accent);flex-shrink:0;overflow:hidden;cursor:pointer;background-size:cover;background-position:center}
+.avatar:hover{outline:2px solid var(--accent-border);outline-offset:1px}
+.status-dot-badge{font-size:10px;border-radius:4px;padding:2px 7px;font-weight:500;display:inline-flex;align-items:center;gap:4px}
+.status-dot-badge .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.status-dot-badge.active{background:var(--success-bg);color:var(--success)}
+.status-dot-badge.active .dot{background:var(--success)}
+.status-dot-badge.pending{background:var(--warn-bg);color:var(--warn-text)}
+.status-dot-badge.pending .dot{background:var(--warn-text)}
+.status-dot-badge.suspended{background:var(--warn-bg);color:var(--warn-text)}
+.status-dot-badge.suspended .dot{background:var(--warn-text)}
+.status-dot-badge.blocked{background:var(--danger-bg);color:var(--danger)}
+.status-dot-badge.blocked .dot{background:var(--danger)}
+#photo-lightbox{display:none;position:fixed;inset:0;background:rgba(10,10,18,.85);z-index:2000;align-items:center;justify-content:center;padding:30px;cursor:zoom-out}
+#photo-lightbox img{max-width:90vw;max-height:90vh;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.4)}
 .name-cell{display:flex;align-items:center;gap:7px}
 .user-name{font-weight:500;color:var(--black)}
 .role-badge{font-size:10px;border-radius:4px;padding:2px 7px;font-weight:500;display:inline-block}
@@ -203,10 +216,11 @@ tr:last-child td{border-bottom:none}
         <table>
           <thead>
             <tr>
-              <th style="width:24%">Ім'я</th>
-              <th style="width:26%">Email</th>
-              <th style="width:14%">Роль</th>
-              <th style="width:22%">Об'єкти</th>
+              <th style="width:20%">Ім'я</th>
+              <th style="width:22%">Email</th>
+              <th style="width:12%">Роль</th>
+              <th style="width:12%">Статус</th>
+              <th style="width:20%">Об'єкти</th>
               <th style="width:14%"></th>
             </tr>
           </thead>
@@ -272,6 +286,10 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<div id="photo-lightbox">
+  <img id="photo-lightbox-img" src="" alt="">
+</div>
+
 <div id="modal-overlay">
   <div id="modal-box">
     <div id="modal-icon" style="font-size:28px;margin-bottom:10px"></div>
@@ -313,6 +331,15 @@ function initials(first, last) {
   return `${(first || '?')[0] || ''}${(last || '?')[0] || ''}`.toUpperCase();
 }
 
+function openPhotoLightbox(url, name) {
+  document.getElementById('photo-lightbox-img').src = url;
+  document.getElementById('photo-lightbox-img').alt = name || '';
+  document.getElementById('photo-lightbox').style.display = 'flex';
+}
+document.getElementById('photo-lightbox').addEventListener('click', () => {
+  document.getElementById('photo-lightbox').style.display = 'none';
+});
+
 let allUsers = [];
 let allObjects = [];
 let supervisorAssignments = {}; // user_id -> [{object_id, object_name}]
@@ -350,13 +377,32 @@ async function loadUsers() {
   if (allUsers.length === 0) { empty.style.display = 'block'; return; }
   empty.style.display = 'none';
 
-  allUsers.forEach(u => {
+  const STATUS_TABLE_LABELS = {
+  pending: { text: 'Не підтверджено', cls: 'pending' },
+  active: { text: 'Активний', cls: 'active' },
+  suspended: { text: 'Призупинено', cls: 'suspended' },
+  blocked: { text: 'Заблоковано', cls: 'blocked' }
+};
+
+function avatarHtml(u) {
+  if (u.photo_url) {
+    return `<div class="avatar" style="background-image:url('${u.photo_url}')" data-photo="${u.photo_url}" data-user-name="${u.first_name} ${u.last_name}"></div>`;
+  }
+  return `<div class="avatar">${initials(u.first_name, u.last_name)}</div>`;
+}
+function statusBadgeHtml(u) {
+  const meta = STATUS_TABLE_LABELS[u.status] || STATUS_TABLE_LABELS.active;
+  return `<span class="status-dot-badge ${meta.cls}"><span class="dot"></span>${meta.text}</span>`;
+}
+
+allUsers.forEach(u => {
     const objs = u.role === 'supervisor' ? (supervisorAssignments[u.id] || []).map(a => a.object_name).join(', ') : '—';
     tbody.insertAdjacentHTML('beforeend', `
       <tr>
-        <td><div class="name-cell"><div class="avatar">${initials(u.first_name, u.last_name)}</div><span class="user-name">${u.first_name} ${u.last_name}</span></div></td>
+        <td><div class="name-cell">${avatarHtml(u)}<span class="user-name">${u.first_name} ${u.last_name}</span></div></td>
         <td>${u.email}</td>
         <td><span class="role-badge ${u.role}">${u.role === 'supervisor' ? 'Supervisor' : 'Shopper'}</span></td>
+        <td>${statusBadgeHtml(u)}</td>
         <td>${objs || '—'}</td>
         <td style="text-align:right"><span class="manage-btn" data-user-id="${u.id}"><i class="ti ti-settings"></i>Керувати</span></td>
       </tr>
@@ -364,13 +410,17 @@ async function loadUsers() {
     cards.insertAdjacentHTML('beforeend', `
       <div class="row-card">
         <div class="row-card-top">
-          <div class="name-cell"><div class="avatar">${initials(u.first_name, u.last_name)}</div><span class="user-name">${u.first_name} ${u.last_name}</span></div>
+          <div class="name-cell">${avatarHtml(u)}<span class="user-name">${u.first_name} ${u.last_name}</span></div>
           <span class="role-badge ${u.role}">${u.role === 'supervisor' ? 'Supervisor' : 'Shopper'}</span>
         </div>
-        <div class="row-card-meta">${u.email}<br>${objs || '—'}</div>
+        <div class="row-card-meta">${u.email}<br>${statusBadgeHtml(u)}<br>${objs || '—'}</div>
         <div style="margin-top:8px"><span class="manage-btn" data-user-id="${u.id}"><i class="ti ti-settings"></i>Керувати</span></div>
       </div>
     `);
+  });
+
+  document.querySelectorAll('.avatar[data-photo]').forEach(el => {
+    el.addEventListener('click', () => openPhotoLightbox(el.dataset.photo, el.dataset.userName));
   });
 
   document.querySelectorAll('.manage-btn').forEach(el => {
@@ -490,7 +540,16 @@ async function changeStatus(userId, newStatus) {
 
 async function renderShopperDetail() {
   const u = currentManageUser;
-  document.getElementById('sd-avatar').textContent = initials(u.first_name, u.last_name);
+  if (u.photo_url) {
+    document.getElementById('sd-avatar').style.backgroundImage = `url('${u.photo_url}')`;
+    document.getElementById('sd-avatar').style.backgroundSize = 'cover';
+    document.getElementById('sd-avatar').style.backgroundPosition = 'center';
+    document.getElementById('sd-avatar').textContent = '';
+    document.getElementById('sd-avatar').style.cursor = 'pointer';
+    document.getElementById('sd-avatar').onclick = () => openPhotoLightbox(u.photo_url, `${u.first_name} ${u.last_name}`);
+  } else {
+    document.getElementById('sd-avatar').textContent = initials(u.first_name, u.last_name);
+  }
   document.getElementById('sd-name').textContent = `${u.first_name} ${u.last_name}`;
   document.getElementById('sd-meta').textContent = `${u.email}${u.city ? ' · ' + u.city : ''}`;
 
@@ -516,7 +575,16 @@ async function renderShopperDetail() {
 
 async function renderSupervisorDetail() {
   const u = currentManageUser;
-  document.getElementById('pd-avatar').textContent = initials(u.first_name, u.last_name);
+  if (u.photo_url) {
+    document.getElementById('pd-avatar').style.backgroundImage = `url('${u.photo_url}')`;
+    document.getElementById('pd-avatar').style.backgroundSize = 'cover';
+    document.getElementById('pd-avatar').style.backgroundPosition = 'center';
+    document.getElementById('pd-avatar').textContent = '';
+    document.getElementById('pd-avatar').style.cursor = 'pointer';
+    document.getElementById('pd-avatar').onclick = () => openPhotoLightbox(u.photo_url, `${u.first_name} ${u.last_name}`);
+  } else {
+    document.getElementById('pd-avatar').textContent = initials(u.first_name, u.last_name);
+  }
   document.getElementById('pd-name').textContent = `${u.first_name} ${u.last_name}`;
   document.getElementById('pd-meta').textContent = u.email;
 
