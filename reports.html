@@ -137,7 +137,7 @@ tr:last-child td{border-bottom:none}
     <div id="report-body">
       <div class="file-row">
         <div class="file-name"><i class="ti ti-file-type-pdf"></i><span id="file-name-text">—</span></div>
-        <button class="btn-primary" id="download-btn" disabled title="Генерація PDF-файлу — Фаза 5, ще не реалізовано"><i class="ti ti-download"></i>Завантажити</button>
+        <button class="btn-primary" id="download-btn"><i class="ti ti-download"></i>Завантажити</button>
       </div>
 
       <div class="report-card">
@@ -194,6 +194,7 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script>
 const API_BASE = 'https://primary-production-4b93e.up.railway.app/webhook';
 let token = null;
@@ -330,6 +331,28 @@ async function init() {
 document.getElementById('logout-btn').addEventListener('click', () => {
   localStorage.removeItem('ga_token');
   window.location.href = 'login.html';
+});
+
+document.getElementById('download-btn').addEventListener('click', () => {
+  const el = document.querySelector('.report-card');
+  const fileName = document.getElementById('file-name-text').textContent || 'zvit.pdf';
+  const btn = document.getElementById('download-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader-2"></i>Генеруємо…';
+
+  html2pdf().set({
+    margin: 0,
+    filename: fileName,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2, backgroundColor: '#ffffff' },
+    jsPDF: { unit: 'pt', format: 'a4', orientation: 'portrait' }
+  }).from(el).save().then(() => {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ti ti-download"></i>Завантажити';
+  }).catch(() => {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ti ti-download"></i>Завантажити';
+  });
 });
 
 init();
