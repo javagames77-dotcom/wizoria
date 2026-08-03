@@ -280,11 +280,14 @@ function openPhotoLightbox(idx){
   document.getElementById('lightboxTitle').textContent = p.title || '';
   document.getElementById('lightboxCaption').textContent = [p.description, p.comment].filter(Boolean).join(' — ') || 'Без коментаря';
 
-  const anomalyFlag = (currentDetail.flags||[]).find(f => f.flag_type === 'anomaly' && p.title && f.details && f.details.includes(`"${p.title}"`));
+  const hasIssue = p.ai_analysis && /не відповіда/i.test(p.ai_analysis);
   const analysisEl = document.getElementById('lightboxAnalysis');
-  if(anomalyFlag){
+  if(p.ai_analysis){
     analysisEl.style.display = 'block';
-    analysisEl.innerHTML = '<i class="ti ti-alert-triangle"></i> AI: ' + escapeHtml(anomalyFlag.details);
+    analysisEl.style.background = hasIssue ? 'var(--danger-bg)' : 'var(--accent-light)';
+    analysisEl.style.borderColor = hasIssue ? 'var(--danger-border)' : 'var(--accent-border)';
+    analysisEl.style.color = hasIssue ? 'var(--danger)' : 'var(--text)';
+    analysisEl.innerHTML = (hasIssue ? '<i class="ti ti-alert-triangle"></i> ' : '<i class="ti ti-sparkles"></i> ') + 'AI: ' + escapeHtml(p.ai_analysis);
   } else {
     analysisEl.style.display = 'none';
   }
@@ -472,12 +475,12 @@ function renderDetail(){
   let photosHtml = '';
   (d.photos||[]).forEach((p, idx)=>{
     const caption = [p.description, p.comment].filter(Boolean).join(' — ');
-    // AI-аналіз фото зберігається як anomaly-флаг (details містить назву вимоги в лапках),
-    // прямого зв'язку photo_id -> analysis в БД немає -- зіставляємо по назві
-    const anomalyFlag = (d.flags||[]).find(f => f.flag_type === 'anomaly' && p.title && f.details && f.details.includes(`"${p.title}"`));
-    const badge = anomalyFlag ? `<div style="position:absolute;top:4px;right:4px;background:var(--danger);color:#fff;border-radius:4px;padding:1px 5px;font-size:9px;font-weight:600;display:flex;align-items:center;gap:2px"><i class="ti ti-alert-triangle" style="font-size:10px"></i></div>` : '';
+    // ai_analysis тепер прямо в ga_submission_photos (виправлено в ga-ai-check) --
+    // раніше доводилось зіставляти anomaly-флаг по назві вимоги в тексті, тепер не потрібно
+    const hasIssue = p.ai_analysis && /не відповіда/i.test(p.ai_analysis);
+    const badge = hasIssue ? `<div style="position:absolute;top:4px;right:4px;background:var(--danger);color:#fff;border-radius:4px;padding:1px 5px;font-size:9px;font-weight:600;display:flex;align-items:center;gap:2px"><i class="ti ti-alert-triangle" style="font-size:10px"></i></div>` : '';
     photosHtml += `<div style="flex:1;min-width:0">
-      <div style="position:relative;border-radius:7px;overflow:hidden;border:0.5px solid ${anomalyFlag ? 'var(--danger-border)' : 'var(--accent-border)'};cursor:pointer" onclick="openPhotoLightbox(${idx})">
+      <div style="position:relative;border-radius:7px;overflow:hidden;border:0.5px solid ${hasIssue ? 'var(--danger-border)' : 'var(--accent-border)'};cursor:pointer" onclick="openPhotoLightbox(${idx})">
         <img src="${escapeHtml(p.file_url)}" style="width:100%;height:64px;object-fit:cover;display:block">
         ${badge}
       </div>
