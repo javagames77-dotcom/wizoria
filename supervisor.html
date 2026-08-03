@@ -447,7 +447,6 @@ async function openDetail(submissionId){
 function renderDetail(){
   const d = currentDetail;
   const s = d.submission;
-  const audio = (d.audio||[])[0];
 
   // Критерії -- рядки таблиці 1:1 з ТЗ (3 колонки: Критерій / Оцінка / Цитата з аудіо).
   // ТЗ показує тільки один yes/no-бейдж "Оцінка" -- показуємо тут результат AI (він і є тим,
@@ -540,22 +539,17 @@ function renderDetail(){
       </div>
       <div style="flex:1">
         <div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);margin-bottom:8px">Аудіозапис</div>
-        <div style="height:38px;border:0.5px solid var(--border);border-radius:7px;background:var(--bg3);display:flex;align-items:center;gap:10px;padding:0 12px;margin-bottom:14px">
-          ${audio ? `<audio id="mainAudio" controls style="width:100%;height:32px" src="${escapeHtml(audio.file_url)}"></audio>` : `<span style="font-size:11px;color:var(--muted)">Аудіозапис відсутній</span>`}
-        </div>
-        <div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);margin-bottom:8px">Діалог (при кліку на цитату)</div>
-        <div id="dialogPanel" style="border:0.5px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:14px;max-height:260px;overflow-y:auto"></div>
+        ${renderAllAudioBlocks(d)}
         <div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);margin-bottom:8px">Фото-докази</div>
         <div style="display:flex;gap:8px">${photosHtml}</div>
       </div>
     </div>
   `;
-  renderDialoguePanel(null);
-  const mainAudioEl = document.getElementById('mainAudio');
-  if(mainAudioEl){
-    lastActiveIdx = -1;
-    mainAudioEl.addEventListener('timeupdate', onAudioTimeUpdate);
-  }
+  (d.audio||[]).forEach((a, i) => {
+    renderDialoguePanel(i, null);
+    const el = document.getElementById('audio_'+i);
+    if(el) el.addEventListener('timeupdate', ()=>onAudioTimeUpdate(i));
+  });
 }
 
 async function submitDecision(decision){
@@ -567,33 +561,51 @@ async function submitDecision(decision){
   openDetail(currentDetail.submission.submission_id);
 }
 
-// Будує панель "Діалог" -- ЗАВЖДИ повний текст по ролях (не тільки при кліку на цитату).
-// highlightCriterion, якщо переданий (клік по цитаті), підсвічує репліку з найближчим таймкодом.
-let currentDialogueLines = null; // масив {speaker,text,start,end} поточного запису, для сінхронізації з аудіо
+// Малює всі аудіозаписи цієї здачі (не тільки перший -- submission може мати
+// декілька зон з аудіо, навіть якщо анкета підключена лише до однієї з них)
+function renderAllAudioBlocks(d){
+  const list = d.audio || [];
+  if(!list.length) return `<div style="font-size:11px;color:var(--muted);margin-bottom:14px">Аудіозапис відсутній</div>`;
+  return list.map((a, i) => `
+    <div style="margin-bottom:14px">
+      <div style="height:38px;border:0.5px solid var(--border);border-radius:7px;background:var(--bg3);display:flex;align-items:center;gap:10px;padding:0 12px;margin-bottom:8px">
+        <span style="font-size:10px;color:var(--muted);white-space:nowrap">${escapeHtml(a.title||'Аудіо')}</span>
+        <audio id="audio_${i}" controls style="width:100%;height:32px" src="${escapeHtml(a.file_url)}"></audio>
+      </div>
+      <div style="font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted2);margin-bottom:4px">Діалог (при кліку на цитату)</div>
+      <div id="dialogPanel_${i}" style="border:0.5px solid var(--border);border-radius:8px;overflow:hidden;max-height:200px;overflow-y:auto"></div>
+    </div>
+  `).join('');
+}
 
-function renderDialoguePanel(highlightCriterion){
-  const audio = (currentDetail.audio||[])[0];
-  let body = `<div style="padding:8px 12px;border-bottom:0.5px solid var(--border);display:flex;justify-content:space-between;align-items:center">
-    <span style="font-size:11px;font-weight:500;color:var(--black)">${escapeHtml(currentDetail.submission.section_title||'')} — повний діалог</span>
-  </div>`;
+// Будує панель "Діалог" для КОНКРЕТНОГО аудіо (idx) -- ЗАВЖДИ повний текст по ролях.
+// highlightCriterion, якщо переданий (клік по цитаті), підсвічує репліку з найближчим таймкодом.
+let currentDialogueLines = {}; // { [audioIdx]: масив {speaker,text,start,end} }
+
+function renderDialoguePanel(idx, highlightCriterion){
+  const audio = (currentDetail.audio||[])[idx];
+  const panelEl = document.getElementById('dialogPanel_'+idx);
+  if(!panelEl) return;
+  let body = '';
 
   let dlg = audio ? audio.dialogue : null;
   if(typeof dlg === 'string'){ try{ dlg = JSON.parse(dlg); }catch(e){ dlg = null; } }
-  currentDialogueLines = (Array.isArray(dlg) && dlg.length) ? dlg : null;
+  const lines = (Array.isArray(dlg) && dlg.length) ? dlg : null;
+  currentDialogueLines[idx] = lines;
 
   body += `<div style="padding:10px 12px;display:flex;flex-direction:column;gap:8px">`;
-  if(currentDialogueLines){
-    currentDialogueLines.forEach((line, i)=>{
+  if(lines){
+    lines.forEach((line, i)=>{
       const isClient = /клієнт|client/i.test(line.speaker||'');
       const hasTime = line.start !== undefined && line.start !== null;
-      const clickable = hasTime ? `onclick="seekAndPlay(${i})" style="cursor:pointer"` : '';
+      const clickable = hasTime ? `onclick="seekAndPlay(${idx}, ${i})" style="cursor:pointer"` : '';
       if(isClient){
-        body += `<div id="dlgLine${i}" data-start="${hasTime?line.start:''}" style="display:flex;flex-direction:column;align-items:flex-end">
+        body += `<div id="dlgLine${idx}_${i}" style="display:flex;flex-direction:column;align-items:flex-end">
           <div style="font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:3px">${escapeHtml(line.speaker||'Клієнт')}${hasTime?' · '+formatTime(line.start):''}</div>
           <div ${clickable} class="dlg-bubble" style="max-width:78%;background:var(--accent);padding:6px 9px;border-radius:7px 0 7px 7px;font-size:11px;line-height:1.5;color:#fff;transition:box-shadow .15s">${escapeHtml(line.text||'')}</div>
         </div>`;
       } else {
-        body += `<div id="dlgLine${i}" data-start="${hasTime?line.start:''}">
+        body += `<div id="dlgLine${idx}_${i}">
           <div style="font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);margin-bottom:3px">${escapeHtml(line.speaker||'Персонал')}${hasTime?' · '+formatTime(line.start):''}</div>
           <div ${clickable} class="dlg-bubble" style="max-width:78%;background:var(--bg3);padding:6px 9px;border-radius:0 7px 7px 7px;font-size:11px;line-height:1.5;color:var(--text);transition:box-shadow .15s">${escapeHtml(line.text||'')}</div>
         </div>`;
@@ -609,9 +621,9 @@ function renderDialoguePanel(highlightCriterion){
   }
   body += `</div>`;
 
-  document.getElementById('dialogPanel').innerHTML = body;
+  panelEl.innerHTML = body;
 
-  if(highlightCriterion) highlightByCriterion(highlightCriterion);
+  if(highlightCriterion) highlightByCriterion(idx, highlightCriterion);
 }
 
 function formatTime(sec){
@@ -619,19 +631,22 @@ function formatTime(sec){
   return String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0');
 }
 
-// Клік по репліці/цитаті -- перемотує головний аудіоплеєр на її таймкод і вмикає відтворення
-function seekAndPlay(idx){
-  const line = currentDialogueLines && currentDialogueLines[idx];
-  const audioEl = document.getElementById('mainAudio');
+// Клік по репліці/цитаті -- перемотує ВІДПОВІДНИЙ аудіоплеєр на її таймкод і вмикає відтворення
+function seekAndPlay(idx, lineIdx){
+  const lines = currentDialogueLines[idx];
+  const line = lines && lines[lineIdx];
+  const audioEl = document.getElementById('audio_'+idx);
   if(!line || !audioEl || line.start===undefined || line.start===null) return;
   audioEl.currentTime = Number(line.start);
   audioEl.play();
-  setActiveLine(idx);
+  setActiveLine(idx, lineIdx);
 }
 
-function setActiveLine(idx){
-  document.querySelectorAll('.dlg-bubble').forEach(el=>{ el.style.boxShadow = 'none'; });
-  const line = document.getElementById('dlgLine'+idx);
+function setActiveLine(idx, lineIdx){
+  const panel = document.getElementById('dialogPanel_'+idx);
+  if(!panel) return;
+  panel.querySelectorAll('.dlg-bubble').forEach(el=>{ el.style.boxShadow = 'none'; });
+  const line = document.getElementById('dlgLine'+idx+'_'+lineIdx);
   if(line){
     const bubble = line.querySelector('.dlg-bubble');
     if(bubble) bubble.style.boxShadow = '0 0 0 2px var(--accent)';
@@ -639,37 +654,51 @@ function setActiveLine(idx){
   }
 }
 
-// Клік по цитаті в таблиці критеріїв -- шукає найближчу репліку за таймкодом і перемотує на неї
-function highlightByCriterion(criterion){
-  if(!currentDialogueLines || criterion.timestamp_start===null || criterion.timestamp_start===undefined) return;
+// Клік по цитаті в таблиці критеріїв -- шукає найближчу репліку за таймкодом у ВІДПОВІДНОМУ аудіо
+function highlightByCriterion(idx, criterion){
+  const lines = currentDialogueLines[idx];
+  if(!lines || criterion.timestamp_start===null || criterion.timestamp_start===undefined) return;
   let bestIdx = -1, bestDiff = Infinity;
-  currentDialogueLines.forEach((line, i)=>{
+  lines.forEach((line, i)=>{
     if(line.start===undefined || line.start===null) return;
     const diff = Math.abs(Number(line.start) - Number(criterion.timestamp_start));
     if(diff < bestDiff){ bestDiff = diff; bestIdx = i; }
   });
-  if(bestIdx >= 0) setActiveLine(bestIdx);
+  if(bestIdx >= 0) setActiveLine(idx, bestIdx);
 }
 
-let lastActiveIdx = -1;
-function onAudioTimeUpdate(){
-  if(!currentDialogueLines) return;
-  const audioEl = document.getElementById('mainAudio');
+let lastActiveLineByAudio = {};
+function onAudioTimeUpdate(idx){
+  const lines = currentDialogueLines[idx];
+  if(!lines) return;
+  const audioEl = document.getElementById('audio_'+idx);
   if(!audioEl) return;
   const t = audioEl.currentTime;
-  let idx = -1;
-  currentDialogueLines.forEach((line, i)=>{
-    if(line.start !== undefined && line.start !== null && Number(line.start) <= t) idx = i;
+  let found = -1;
+  lines.forEach((line, i)=>{
+    if(line.start !== undefined && line.start !== null && Number(line.start) <= t) found = i;
   });
-  if(idx !== -1 && idx !== lastActiveIdx){
-    lastActiveIdx = idx;
-    setActiveLine(idx);
+  if(found !== -1 && found !== lastActiveLineByAudio[idx]){
+    lastActiveLineByAudio[idx] = found;
+    setActiveLine(idx, found);
   }
 }
 
+// Критерії зараз завжди належать ОДНІЙ (головній) анкеті/зоні -- шукаємо відповідне аудіо
+// по section_key, щоб клік по цитаті перемотував саме той запис, а не завжди перший
+function primaryAudioIdx(){
+  const s = currentDetail.submission;
+  const audioList = currentDetail.audio || [];
+  if(!s.section_key) return 0;
+  const keys = String(s.section_key).split(',').map(x=>x.trim());
+  const idx = audioList.findIndex(a => a.section_key && keys.includes(a.section_key));
+  return idx >= 0 ? idx : 0;
+}
+
 function openQuote(criterion){
-  renderDialoguePanel(criterion);
-  const audioEl = document.getElementById('mainAudio');
+  const idx = primaryAudioIdx();
+  renderDialoguePanel(idx, criterion);
+  const audioEl = document.getElementById('audio_'+idx);
   if(audioEl && criterion.timestamp_start!==null && criterion.timestamp_start!==undefined){
     audioEl.currentTime = Number(criterion.timestamp_start);
     audioEl.play();
