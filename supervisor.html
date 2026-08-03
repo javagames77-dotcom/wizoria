@@ -444,41 +444,40 @@ async function openDetail(submissionId){
   renderDetail();
 }
 
+// Групує критерії та аудіо по зоні (section_key). Якщо анкета підключена лише до
+// однієї зони (як зараз -- "бар"), а аудіо є і для іншої (напр. "каса") без анкети --
+// та зона всерівно з'являється окремою вкладкою, просто з порожнім списком критеріїв.
+function buildZones(d){
+  const zonesMap = {};
+  (d.criteria||[]).forEach(c=>{
+    const key = c.section_key || '_unknown';
+    if(!zonesMap[key]) zonesMap[key] = { key, title: c.section_title || key, criteria: [], audio: null, audioIdx: -1 };
+    zonesMap[key].criteria.push(c);
+  });
+  (d.audio||[]).forEach((a, idx)=>{
+    const key = a.section_key || '_unknown';
+    if(!zonesMap[key]) zonesMap[key] = { key, title: (a.title||key).replace(/^Аудіо\s+/i,'').trim(), criteria: [], audio: a, audioIdx: idx };
+    else { zonesMap[key].audio = a; zonesMap[key].audioIdx = idx; }
+  });
+  return Object.values(zonesMap);
+}
+
+let activeZoneKey = null;
+
 function renderDetail(){
   const d = currentDetail;
   const s = d.submission;
-
-  // Критерії -- рядки таблиці 1:1 з ТЗ (3 колонки: Критерій / Оцінка / Цитата з аудіо).
-  // ТЗ показує тільки один yes/no-бейдж "Оцінка" -- показуємо тут результат AI (він і є тим,
-  // що визначає підсумкову оцінку критерію), а не окремо ще й відповідь шоппера
-  let criteriaRows = '';
-  (d.criteria||[]).forEach(c=>{
-    let badge;
-    if(c.ai_result === 'yes'){
-      badge = `<span style="font-size:10px;background:var(--success-bg);color:var(--success);padding:2px 6px;border-radius:4px;font-weight:500;display:inline-flex;align-items:center;gap:3px"><i class="ti ti-check" style="font-size:11px"></i> Так</span>`;
-    } else if(c.ai_result === 'no'){
-      badge = `<span style="font-size:10px;background:var(--danger-bg);color:var(--danger);padding:2px 6px;border-radius:4px;font-weight:500;display:inline-flex;align-items:center;gap:3px"><i class="ti ti-x" style="font-size:11px"></i> Ні</span>`;
-    } else {
-      badge = `<span style="font-size:10px;color:var(--muted)">—</span>`;
-    }
-    const quote = c.ai_quote && c.ai_quote.trim()
-      ? `<button class="quote-btn" onclick='openQuote(${JSON.stringify(c).replace(/'/g,"&#39;")})' style="color:var(--muted)">${escapeHtml(c.ai_quote)}</button>`
-      : `<span style="font-style:italic;color:var(--muted)">— не зафіксовано</span>`;
-    criteriaRows += `<tr>
-      <td style="padding:8px 10px;font-size:12px;border-bottom:0.5px solid var(--border);color:var(--text)">${escapeHtml(c.question_text)}${c.mismatch?' <i class=\"ti ti-alert-triangle\" style=\"color:var(--danger);font-size:11px\" title=\"Розбіжність з відповіддю покупця\"></i>':''}</td>
-      <td style="padding:8px 10px;font-size:12px;border-bottom:0.5px solid var(--border)">${badge}</td>
-      <td style="padding:8px 10px;font-size:11px;border-bottom:0.5px solid var(--border);color:var(--muted)">${quote}</td>
-    </tr>`;
-  });
+  const zones = buildZones(d);
+  if(!activeZoneKey || !zones.find(z=>z.key===activeZoneKey)){
+    activeZoneKey = zones.length ? zones[0].key : null;
+  }
 
   let photosHtml = '';
   (d.photos||[]).forEach((p, idx)=>{
     const caption = [p.description, p.comment].filter(Boolean).join(' — ');
-    // ai_analysis тепер прямо в ga_submission_photos (виправлено в ga-ai-check) --
-    // раніше доводилось зіставляти anomaly-флаг по назві вимоги в тексті, тепер не потрібно
     const hasIssue = p.ai_analysis && /не відповіда/i.test(p.ai_analysis);
     const badge = hasIssue ? `<div style="position:absolute;top:4px;right:4px;background:var(--danger);color:#fff;border-radius:4px;padding:1px 5px;font-size:9px;font-weight:600;display:flex;align-items:center;gap:2px"><i class="ti ti-alert-triangle" style="font-size:10px"></i></div>` : '';
-    photosHtml += `<div style="flex:1;min-width:0">
+    photosHtml += `<div style="flex:1;min-width:0;max-width:150px">
       <div style="position:relative;border-radius:7px;overflow:hidden;border:0.5px solid ${hasIssue ? 'var(--danger-border)' : 'var(--accent-border)'};cursor:pointer" onclick="openPhotoLightbox(${idx})">
         <img src="${escapeHtml(p.file_url)}" style="width:100%;height:64px;object-fit:cover;display:block">
         ${badge}
@@ -506,6 +505,10 @@ function renderDetail(){
     ? escapeHtml(s.ai_summary)
     : '<span style="color:var(--muted)">Текстовий AI-висновок по цій секції ще не зберігається в базі окремо (є лише числовий скор і цитати по кожному критерію в таблиці нижче).</span>';
 
+  const tabsHtml = zones.map(z => `
+    <div onclick="switchZoneTab('${z.key}')" style="padding:6px 14px;font-size:11px;font-weight:500;cursor:pointer;border-radius:6px 6px 0 0;border:0.5px solid var(--border);border-bottom:${z.key===activeZoneKey?'1px solid var(--bg2)':'0.5px solid var(--border)'};background:${z.key===activeZoneKey?'var(--bg2)':'var(--bg3)'};color:${z.key===activeZoneKey?'var(--accent)':'var(--muted)'};margin-right:2px;margin-bottom:-1px;position:relative;z-index:${z.key===activeZoneKey?2:1}">${escapeHtml(z.title)}</div>
+  `).join('');
+
   document.getElementById('detailContent').innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
       <div>
@@ -523,33 +526,90 @@ function renderDetail(){
         ${actionButtons}
       </div>
     </div>
-    <div style="display:flex;gap:16px">
-      <div style="flex:1.6">
-        <div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);margin-bottom:8px">AI висновок</div>
-        <div style="background:var(--accent-light);border:0.5px solid var(--accent-border);border-radius:8px;padding:10px 13px;font-size:12px;color:var(--text);line-height:1.6;margin-bottom:14px">${aiSummaryText}</div>
-        <div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);margin-bottom:8px">Критерії оцінювання</div>
-        <table style="width:100%;border-collapse:collapse;table-layout:fixed">
-          <thead><tr>
-            <th style="font-size:10px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--muted2);padding:7px 10px;text-align:left;border-bottom:1px solid var(--border);width:38%">Критерій</th>
-            <th style="font-size:10px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--muted2);padding:7px 10px;text-align:left;border-bottom:1px solid var(--border);width:16%">Оцінка</th>
-            <th style="font-size:10px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--muted2);padding:7px 10px;text-align:left;border-bottom:1px solid var(--border);width:46%">Цитата з аудіо</th>
-          </tr></thead>
-          <tbody>${criteriaRows}</tbody>
-        </table>
-      </div>
-      <div style="flex:1">
-        <div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);margin-bottom:8px">Аудіозапис</div>
-        ${renderAllAudioBlocks(d)}
-        <div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);margin-bottom:8px">Фото-докази</div>
-        <div style="display:flex;gap:8px">${photosHtml}</div>
-      </div>
+
+    <div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);margin-bottom:8px">AI висновок (загальний по здачі)</div>
+    <div style="background:var(--accent-light);border:0.5px solid var(--accent-border);border-radius:8px;padding:10px 13px;font-size:12px;color:var(--text);line-height:1.6;margin-bottom:16px">${aiSummaryText}</div>
+
+    <div style="display:flex;margin-bottom:0">${tabsHtml}</div>
+    <div id="zoneContent" style="border:0.5px solid var(--border);border-radius:0 8px 8px 8px;padding:14px;display:flex;gap:16px;position:relative;z-index:0;background:var(--bg2)"></div>
+
+    <div style="margin-top:16px">
+      <div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);margin-bottom:8px">Фото-докази (спільні для здачі)</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">${photosHtml}</div>
     </div>
   `;
-  (d.audio||[]).forEach((a, i) => {
-    renderDialoguePanel(i, null);
-    const el = document.getElementById('audio_'+i);
-    if(el) el.addEventListener('timeupdate', ()=>onAudioTimeUpdate(i));
-  });
+  renderZoneContent();
+}
+
+function switchZoneTab(key){
+  activeZoneKey = key;
+  renderDetail();
+}
+
+function renderZoneContent(){
+  const d = currentDetail;
+  const zones = buildZones(d);
+  const zone = zones.find(z=>z.key===activeZoneKey) || zones[0];
+  const container = document.getElementById('zoneContent');
+  if(!zone){ container.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:10px">Немає даних по зонах.</div>'; return; }
+
+  let criteriaBlock;
+  if(zone.criteria.length){
+    let rows = '';
+    zone.criteria.forEach(c=>{
+      let badge;
+      if(c.ai_result === 'yes'){
+        badge = `<span style="font-size:10px;background:var(--success-bg);color:var(--success);padding:2px 6px;border-radius:4px;font-weight:500;display:inline-flex;align-items:center;gap:3px"><i class="ti ti-check" style="font-size:11px"></i> Так</span>`;
+      } else if(c.ai_result === 'no'){
+        badge = `<span style="font-size:10px;background:var(--danger-bg);color:var(--danger);padding:2px 6px;border-radius:4px;font-weight:500;display:inline-flex;align-items:center;gap:3px"><i class="ti ti-x" style="font-size:11px"></i> Ні</span>`;
+      } else {
+        badge = `<span style="font-size:10px;color:var(--muted)">—</span>`;
+      }
+      const quote = c.ai_quote && c.ai_quote.trim()
+        ? `<button class="quote-btn" onclick='openQuote(${JSON.stringify(c).replace(/'/g,"&#39;")})' style="color:var(--muted)">${escapeHtml(c.ai_quote)}</button>`
+        : `<span style="font-style:italic;color:var(--muted)">— не зафіксовано</span>`;
+      rows += `<tr>
+        <td style="padding:8px 10px;font-size:12px;border-bottom:0.5px solid var(--border);color:var(--text)">${escapeHtml(c.question_text)}${c.mismatch?' <i class=\"ti ti-alert-triangle\" style=\"color:var(--danger);font-size:11px\" title=\"Розбіжність з відповіддю покупця\"></i>':''}</td>
+        <td style="padding:8px 10px;font-size:12px;border-bottom:0.5px solid var(--border)">${badge}</td>
+        <td style="padding:8px 10px;font-size:11px;border-bottom:0.5px solid var(--border);color:var(--muted)">${quote}</td>
+      </tr>`;
+    });
+    criteriaBlock = `<table style="width:100%;border-collapse:collapse;table-layout:fixed">
+      <thead><tr>
+        <th style="font-size:10px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--muted2);padding:7px 10px;text-align:left;border-bottom:1px solid var(--border);width:38%">Критерій</th>
+        <th style="font-size:10px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--muted2);padding:7px 10px;text-align:left;border-bottom:1px solid var(--border);width:16%">Оцінка</th>
+        <th style="font-size:10px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--muted2);padding:7px 10px;text-align:left;border-bottom:1px solid var(--border);width:46%">Цитата з аудіо</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  } else {
+    criteriaBlock = `<div style="color:var(--muted);font-size:11px;padding:10px 0">Анкету для цієї секції не підключено до завдання — критеріїв оцінювання немає, є лише аудіозапис.</div>`;
+  }
+
+  const audioBlock = zone.audio
+    ? `<div style="height:38px;border:0.5px solid var(--border);border-radius:7px;background:var(--bg3);display:flex;align-items:center;gap:10px;padding:0 12px;margin-bottom:8px">
+         <audio id="audio_${zone.audioIdx}" controls style="width:100%;height:32px" src="${escapeHtml(zone.audio.file_url)}"></audio>
+       </div>
+       <div style="font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted2);margin-bottom:4px">Діалог (при кліку на цитату)</div>
+       <div id="dialogPanel_${zone.audioIdx}" style="border:0.5px solid var(--border);border-radius:8px;overflow:hidden;max-height:280px;overflow-y:auto"></div>`
+    : `<div style="color:var(--muted);font-size:11px">Аудіозапис для цієї секції відсутній.</div>`;
+
+  container.innerHTML = `
+    <div style="flex:1.6">
+      <div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);margin-bottom:8px">Критерії оцінювання</div>
+      ${criteriaBlock}
+    </div>
+    <div style="flex:1">
+      <div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);margin-bottom:8px">Аудіозапис</div>
+      ${audioBlock}
+    </div>
+  `;
+
+  if(zone.audio && zone.audioIdx >= 0){
+    renderDialoguePanel(zone.audioIdx, null);
+    const el = document.getElementById('audio_'+zone.audioIdx);
+    if(el) el.addEventListener('timeupdate', ()=>onAudioTimeUpdate(zone.audioIdx));
+  }
 }
 
 async function submitDecision(decision){
@@ -561,22 +621,6 @@ async function submitDecision(decision){
   openDetail(currentDetail.submission.submission_id);
 }
 
-// Малює всі аудіозаписи цієї здачі (не тільки перший -- submission може мати
-// декілька зон з аудіо, навіть якщо анкета підключена лише до однієї з них)
-function renderAllAudioBlocks(d){
-  const list = d.audio || [];
-  if(!list.length) return `<div style="font-size:11px;color:var(--muted);margin-bottom:14px">Аудіозапис відсутній</div>`;
-  return list.map((a, i) => `
-    <div style="margin-bottom:14px">
-      <div style="height:38px;border:0.5px solid var(--border);border-radius:7px;background:var(--bg3);display:flex;align-items:center;gap:10px;padding:0 12px;margin-bottom:8px">
-        <span style="font-size:10px;color:var(--muted);white-space:nowrap">${escapeHtml(a.title||'Аудіо')}</span>
-        <audio id="audio_${i}" controls style="width:100%;height:32px" src="${escapeHtml(a.file_url)}"></audio>
-      </div>
-      <div style="font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted2);margin-bottom:4px">Діалог (при кліку на цитату)</div>
-      <div id="dialogPanel_${i}" style="border:0.5px solid var(--border);border-radius:8px;overflow:hidden;max-height:200px;overflow-y:auto"></div>
-    </div>
-  `).join('');
-}
 
 // Будує панель "Діалог" для КОНКРЕТНОГО аудіо (idx) -- ЗАВЖДИ повний текст по ролях.
 // highlightCriterion, якщо переданий (клік по цитаті), підсвічує репліку з найближчим таймкодом.
@@ -684,19 +728,12 @@ function onAudioTimeUpdate(idx){
   }
 }
 
-// Критерії зараз завжди належать ОДНІЙ (головній) анкеті/зоні -- шукаємо відповідне аудіо
-// по section_key, щоб клік по цитаті перемотував саме той запис, а не завжди перший
-function primaryAudioIdx(){
-  const s = currentDetail.submission;
-  const audioList = currentDetail.audio || [];
-  if(!s.section_key) return 0;
-  const keys = String(s.section_key).split(',').map(x=>x.trim());
-  const idx = audioList.findIndex(a => a.section_key && keys.includes(a.section_key));
-  return idx >= 0 ? idx : 0;
-}
-
+// Клік по цитаті в критеріях -- шукає аудіо ТІЄЇ Ж ЗОНИ по section_key критерія,
+// а не завжди перше/головне аудіо (критерій і аудіо тепер точно зв'язані по section_key)
 function openQuote(criterion){
-  const idx = primaryAudioIdx();
+  const audioList = currentDetail.audio || [];
+  let idx = audioList.findIndex(a => a.section_key && criterion.section_key && a.section_key === criterion.section_key);
+  if(idx < 0) idx = 0;
   renderDialoguePanel(idx, criterion);
   const audioEl = document.getElementById('audio_'+idx);
   if(audioEl && criterion.timestamp_start!==null && criterion.timestamp_start!==undefined){
