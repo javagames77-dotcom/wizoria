@@ -365,12 +365,7 @@ function reviewRow(s){
     });
     flagsCell += '</div>';
   } else if(s.color==='green'){
-    // color='green' ставиться і для auto_approved, і для approved (ручне рішення) --
-    // тут розрізняємо за фактичним decision, а не за кольором, інакше ручне
-    // схвалення супервізора підписується як "Авто-схвалено", що вводить в оману.
-    const isRealAuto = s.decision === 'auto_approved';
-    const label = isRealAuto ? 'Авто-схвалено' : 'Схвалено супервізором';
-    flagsCell = `<span style="display:inline-flex;align-items:center;gap:3px;background:var(--success-bg);color:var(--success);border:0.5px solid var(--success-border);border-radius:4px;padding:2px 6px;font-size:10px;font-weight:500"><i class="ti ti-circle-check" style="font-size:11px"></i> ${label}</span>`;
+    flagsCell = `<span style="display:inline-flex;align-items:center;gap:3px;background:var(--success-bg);color:var(--success);border:0.5px solid var(--success-border);border-radius:4px;padding:2px 6px;font-size:10px;font-weight:500"><i class="ti ti-circle-check" style="font-size:11px"></i> Авто-схвалено</span>`;
   } else if(s.ai_score === null){
     // AI-перевірка справді ще не прогонялась для цього submission -- випадок, якого немає в мокапі ТЗ
     flagsCell = `<span style="color:var(--muted);font-size:11px">AI ще не перевіряв</span>`;
@@ -409,8 +404,7 @@ function renderReviews(){
   if(activeFilter) rows = rows.filter(s => (s.decision||'pending') === activeFilter);
 
   const needAttention = allSubmissions.filter(s=>s.color==='red'||s.color==='yellow').length;
-  // рахуємо строго по decision, а не по кольору -- колір 'green' включає й ручні approved
-  const autoApproved = allSubmissions.filter(s=>s.decision==='auto_approved').length;
+  const autoApproved = allSubmissions.filter(s=>s.color==='green').length;
   document.getElementById('reviewsSummary').innerHTML =
     `<span>${needAttention} потребують уваги · ${autoApproved} авто-схвалено</span><span>Всього: ${allSubmissions.length} перевірок</span>`;
 
@@ -571,11 +565,25 @@ function renderZoneContent(){
       } else {
         badge = `<span style="font-size:10px;color:var(--muted)">—</span>`;
       }
+      // Відповідь покупця (answer_value) -- окрема колонка, паралельно з AI-перевіркою,
+      // щоб не виглядало ніби щось "не зафіксовано", коли насправді просто AI не може
+      // підтвердити це по аудіо (два різні поля: що наклацав покупець і що почула AI).
+      let shopperBadge;
+      if (c.answer_value === null || c.answer_value === undefined || c.answer_value === '') {
+        shopperBadge = `<span style="font-size:10px;color:var(--muted)">—</span>`;
+      } else if (c.answer_value === 'yes') {
+        shopperBadge = `<span style="font-size:10px;background:var(--success-bg);color:var(--success);padding:2px 6px;border-radius:4px;font-weight:500">Так</span>`;
+      } else if (c.answer_value === 'no') {
+        shopperBadge = `<span style="font-size:10px;background:var(--danger-bg);color:var(--danger);padding:2px 6px;border-radius:4px;font-weight:500">Ні</span>`;
+      } else {
+        shopperBadge = `<span style="font-size:10px;color:var(--text)">${escapeHtml(String(c.answer_value))}</span>`;
+      }
       const quote = c.ai_quote && c.ai_quote.trim()
         ? `<button class="quote-btn" onclick='openQuote(${JSON.stringify(c).replace(/'/g,"&#39;")})' style="color:var(--muted)">${escapeHtml(c.ai_quote)}</button>`
         : `<span style="font-style:italic;color:var(--muted)">— не зафіксовано</span>`;
       rows += `<tr>
         <td style="padding:8px 10px;font-size:12px;border-bottom:0.5px solid var(--border);color:var(--text)">${escapeHtml(c.question_text)}${c.mismatch?' <i class=\"ti ti-alert-triangle\" style=\"color:var(--danger);font-size:11px\" title=\"Розбіжність з відповіддю покупця\"></i>':''}</td>
+        <td style="padding:8px 10px;font-size:12px;border-bottom:0.5px solid var(--border)">${shopperBadge}</td>
         <td style="padding:8px 10px;font-size:12px;border-bottom:0.5px solid var(--border)">${badge}</td>
         <td style="padding:8px 10px;font-size:11px;border-bottom:0.5px solid var(--border);color:var(--muted)">${quote}</td>
       </tr>`;
@@ -583,8 +591,9 @@ function renderZoneContent(){
     criteriaBlock = `<table style="width:100%;border-collapse:collapse;table-layout:fixed">
       <thead><tr>
         <th style="font-size:10px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--muted2);padding:7px 10px;text-align:left;border-bottom:1px solid var(--border);width:38%">Критерій</th>
-        <th style="font-size:10px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--muted2);padding:7px 10px;text-align:left;border-bottom:1px solid var(--border);width:16%">Оцінка</th>
-        <th style="font-size:10px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--muted2);padding:7px 10px;text-align:left;border-bottom:1px solid var(--border);width:46%">Цитата з аудіо</th>
+        <th style="font-size:10px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--muted2);padding:7px 10px;text-align:left;border-bottom:1px solid var(--border);width:13%">Відповідь покупця</th>
+        <th style="font-size:10px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--muted2);padding:7px 10px;text-align:left;border-bottom:1px solid var(--border);width:13%">AI-перевірка</th>
+        <th style="font-size:10px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--muted2);padding:7px 10px;text-align:left;border-bottom:1px solid var(--border);width:36%">Цитата з аудіо</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
