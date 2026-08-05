@@ -28,9 +28,6 @@ body{margin:0;font-family:'Inter',-apple-system,sans-serif;background:var(--bg);
 
 .view{display:none}
 .view.active{display:block}
-.frame{border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--bg2)}
-.frame-bar{height:30px;background:var(--bg3);border-bottom:0.5px solid var(--border);display:flex;align-items:center;padding:0 12px;gap:6px}
-.frame-dot{width:9px;height:9px;border-radius:50%}
 
 .card-plain{margin-bottom:8px}
 .spec-list{list-style:none;padding:0;margin:0}
@@ -70,14 +67,7 @@ body{margin:0;font-family:'Inter',-apple-system,sans-serif;background:var(--bg);
      ("Завдання, звіти, покупці"), хоча детально ніде не розписано.
 ════════════════════════════════════════════════ -->
 <div class="view" id="view-tasks" style="padding:16px">
-  <div class="frame">
-    <div class="frame-bar">
-      <div class="frame-dot" style="background:#ff6058"></div>
-      <div class="frame-dot" style="background:#ffbe2e"></div>
-      <div class="frame-dot" style="background:#2ac940"></div>
-      <div style="flex:1;height:16px;background:var(--bg2);border-radius:3px;margin:0 12px;border:0.5px solid var(--border)"></div>
-    </div>
-    <div style="display:flex">
+      <div style="display:flex">
       <div style="width:190px;min-width:190px;border-right:0.5px solid var(--border);padding:12px 0;background:var(--bg3)">
         <div style="padding:8px 14px 12px;border-bottom:0.5px solid var(--border);margin-bottom:8px">
           <div style="font-size:9px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--muted2)">Supervisor</div>
@@ -92,7 +82,7 @@ body{margin:0;font-family:'Inter',-apple-system,sans-serif;background:var(--bg);
         <div id="tasksWrap"><div class="loading">Завантаження…</div></div>
       </div>
     </div>
-  </div>
+  
 </div>
 
 <!-- ══════════════════════════════════════════════
@@ -102,14 +92,7 @@ body{margin:0;font-family:'Inter',-apple-system,sans-serif;background:var(--bg);
 <div class="view" id="view-reviews" style="padding:16px">
 
 
-  <div class="frame">
-    <div class="frame-bar">
-      <div class="frame-dot" style="background:#ff6058"></div>
-      <div class="frame-dot" style="background:#ffbe2e"></div>
-      <div class="frame-dot" style="background:#2ac940"></div>
-      <div style="flex:1;height:16px;background:var(--bg2);border-radius:3px;margin:0 12px;border:0.5px solid var(--border)"></div>
-    </div>
-    <div style="display:flex">
+      <div style="display:flex">
       <!-- Sidebar (1:1) -->
       <div style="width:190px;min-width:190px;border-right:0.5px solid var(--border);padding:12px 0;background:var(--bg3)">
         <div style="padding:8px 14px 12px;border-bottom:0.5px solid var(--border);margin-bottom:8px">
@@ -147,7 +130,7 @@ body{margin:0;font-family:'Inter',-apple-system,sans-serif;background:var(--bg);
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-size:11px;color:var(--muted);padding:0 4px" id="reviewsSummary"></div>
       </div>
     </div>
-  </div>
+  
 </div>
 
 <!-- ══════════════════════════════════════════════
@@ -155,14 +138,7 @@ body{margin:0;font-family:'Inter',-apple-system,sans-serif;background:var(--bg);
      "Веб-інтерфейс Supervisor — перегляд звіту", рядки 1329-1448)
 ════════════════════════════════════════════════ -->
 <div class="view" id="view-detail" style="padding:16px">
-  <div class="frame">
-    <div class="frame-bar">
-      <div class="frame-dot" style="background:#ff6058"></div>
-      <div class="frame-dot" style="background:#ffbe2e"></div>
-      <div class="frame-dot" style="background:#2ac940"></div>
-      <div style="flex:1;height:16px;background:var(--bg2);border-radius:3px;margin:0 12px;border:0.5px solid var(--border)"></div>
-    </div>
-    <div style="display:flex">
+      <div style="display:flex">
       <!-- Sidebar (1:1, включно з "← Всі звіти" -- саме так підписано в цьому екрані ТЗ) -->
       <div style="width:190px;min-width:190px;border-right:0.5px solid var(--border);padding:12px 0;background:var(--bg3)">
         <div style="padding:8px 14px 12px;border-bottom:0.5px solid var(--border);margin-bottom:8px">
@@ -176,7 +152,7 @@ body{margin:0;font-family:'Inter',-apple-system,sans-serif;background:var(--bg);
       <!-- Main -->
       <div style="flex:1;padding:16px" id="detailContent"><div class="loading">Завантаження…</div></div>
     </div>
-  </div>
+  
 </div>
 
 <!-- ══════════════════════════════════════════════
@@ -184,14 +160,7 @@ body{margin:0;font-family:'Inter',-apple-system,sans-serif;background:var(--bg);
      "Верифікація нових покупців", рядки 1808-1897)
 ════════════════════════════════════════════════ -->
 <div class="view" id="view-shoppers" style="padding:16px">
-  <div class="frame">
-    <div class="frame-bar">
-      <div class="frame-dot" style="background:#ff6058"></div>
-      <div class="frame-dot" style="background:#ffbe2e"></div>
-      <div class="frame-dot" style="background:#2ac940"></div>
-      <div style="flex:1;height:16px;background:var(--bg2);border-radius:3px;margin:0 12px;border:0.5px solid var(--border)"></div>
-    </div>
-    <div style="display:flex">
+      <div style="display:flex">
       <div style="width:190px;min-width:190px;border-right:0.5px solid var(--border);padding:12px 0;background:var(--bg3)">
         <div style="padding:7px 14px;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:7px;cursor:pointer" onclick="showView('tasks')"><i class="ti ti-clipboard-list" style="font-size:14px"></i> Завдання</div>
         <div style="padding:7px 14px;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:7px;cursor:pointer" onclick="showView('reviews')"><i class="ti ti-file-search" style="font-size:14px"></i> Перевірки</div>
@@ -205,7 +174,7 @@ body{margin:0;font-family:'Inter',-apple-system,sans-serif;background:var(--bg);
         <div id="shoppersWrap"><div class="loading">Завантаження…</div></div>
       </div>
     </div>
-  </div>
+  
 </div>
 
 <!-- Лайтбокс фото -- НЕ з ТЗ (мокап малює лише статичний плейсхолдер), додано щоб
