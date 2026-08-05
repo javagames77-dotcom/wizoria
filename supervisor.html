@@ -365,7 +365,12 @@ function reviewRow(s){
     });
     flagsCell += '</div>';
   } else if(s.color==='green'){
-    flagsCell = `<span style="display:inline-flex;align-items:center;gap:3px;background:var(--success-bg);color:var(--success);border:0.5px solid var(--success-border);border-radius:4px;padding:2px 6px;font-size:10px;font-weight:500"><i class="ti ti-circle-check" style="font-size:11px"></i> Авто-схвалено</span>`;
+    // color='green' ставиться і для auto_approved, і для approved (ручне рішення) --
+    // тут розрізняємо за фактичним decision, а не за кольором, інакше ручне
+    // схвалення супервізора підписується як "Авто-схвалено", що вводить в оману.
+    const isRealAuto = s.decision === 'auto_approved';
+    const label = isRealAuto ? 'Авто-схвалено' : 'Схвалено супервізором';
+    flagsCell = `<span style="display:inline-flex;align-items:center;gap:3px;background:var(--success-bg);color:var(--success);border:0.5px solid var(--success-border);border-radius:4px;padding:2px 6px;font-size:10px;font-weight:500"><i class="ti ti-circle-check" style="font-size:11px"></i> ${label}</span>`;
   } else if(s.ai_score === null){
     // AI-перевірка справді ще не прогонялась для цього submission -- випадок, якого немає в мокапі ТЗ
     flagsCell = `<span style="color:var(--muted);font-size:11px">AI ще не перевіряв</span>`;
@@ -404,7 +409,8 @@ function renderReviews(){
   if(activeFilter) rows = rows.filter(s => (s.decision||'pending') === activeFilter);
 
   const needAttention = allSubmissions.filter(s=>s.color==='red'||s.color==='yellow').length;
-  const autoApproved = allSubmissions.filter(s=>s.color==='green').length;
+  // рахуємо строго по decision, а не по кольору -- колір 'green' включає й ручні approved
+  const autoApproved = allSubmissions.filter(s=>s.decision==='auto_approved').length;
   document.getElementById('reviewsSummary').innerHTML =
     `<span>${needAttention} потребують уваги · ${autoApproved} авто-схвалено</span><span>Всього: ${allSubmissions.length} перевірок</span>`;
 
