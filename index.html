@@ -41,6 +41,16 @@ body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var
 .card-head h2{font-size:16px;font-weight:600;color:var(--black)}
 .card p.sub{font-size:13px;color:var(--muted);margin-bottom:18px;line-height:1.5}
 
+.role-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
+@media(max-width:600px){.role-grid{grid-template-columns:1fr}}
+.role-card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;box-shadow:var(--card-shadow);padding:24px 22px;text-align:center}
+.role-icon{width:44px;height:44px;border-radius:12px;background:var(--accent-light);border:1px solid var(--accent-border);
+  display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:20px;color:var(--accent)}
+.role-icon.staff{background:var(--bg3);border-color:var(--border2);color:var(--text)}
+.role-card h3{font-size:15px;font-weight:600;color:var(--black);margin-bottom:8px}
+.role-card p{font-size:13px;color:var(--muted);line-height:1.5}
+.role-card .btn-row{justify-content:center}
+
 .pwa-link{display:flex;align-items:center;justify-content:space-between;gap:12px;
   background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:20px}
 .pwa-link .url{font-size:12px;color:var(--muted);font-family:'SF Mono',monospace;word-break:break-all}
@@ -77,9 +87,28 @@ body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var
   <div class="hero">
     <h1>Платформа таємного покупця</h1>
     <p>Wizoria перевіряє якість обслуговування в кінотеатрах мережі за допомогою таємних покупців: фото, аудіозапис та анкета оцінки прямо з місця відвідування — і супервайзер отримує об'єктивний звіт того ж дня.</p>
-    <div class="btn-row">
-      <a href="login.html" class="btn btn-primary"><i class="ti ti-login" aria-hidden="true"></i> Увійти</a>
-      <a href="register.html" class="btn btn-outline"><i class="ti ti-user-plus" aria-hidden="true"></i> Стати таємним покупцем</a>
+  </div>
+
+  <!-- Два чітко розділених входи -- саме тут виникала плутанина: адміни намагались
+       увійти в PWA, а таємні покупці -- в кабінет персоналу. Тепер це дві окремі,
+       явно підписані картки, а не один спільний "Увійти". -->
+  <div class="role-grid">
+    <div class="role-card">
+      <div class="role-icon"><i class="ti ti-device-mobile" aria-hidden="true"></i></div>
+      <h3>Я — таємний покупець</h3>
+      <p>Виконую завдання: фото, аудіозапис, анкета. Вхід через мобільний застосунок (PWA), не через цей сайт.</p>
+      <div class="btn-row" style="margin-top:16px">
+        <a href="shopper-pwa/index.html" class="btn btn-primary"><i class="ti ti-device-mobile" aria-hidden="true"></i> Відкрити застосунок</a>
+        <a href="register.html" class="btn btn-outline"><i class="ti ti-user-plus" aria-hidden="true"></i> Зареєструватися</a>
+      </div>
+    </div>
+    <div class="role-card">
+      <div class="role-icon staff"><i class="ti ti-briefcase" aria-hidden="true"></i></div>
+      <h3>Я — персонал Wizoria</h3>
+      <p>Адміністратор або супервізор. Керування завданнями, анкетами, перевірка звітів — окремий кабінет, не застосунок.</p>
+      <div class="btn-row" style="margin-top:16px">
+        <a href="login.html" class="btn btn-outline"><i class="ti ti-login" aria-hidden="true"></i> Увійти до кабінету</a>
+      </div>
     </div>
   </div>
 
@@ -98,11 +127,12 @@ body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var
     <div class="tabs">
       <div class="tab active" data-panel="iphone">iPhone</div>
       <div class="tab" data-panel="android">Android</div>
+      <div class="tab" data-panel="desktop">Комп'ютер (Chrome)</div>
     </div>
 
     <div class="install-panel active" id="panel-iphone">
       <ol class="steps">
-        <li><div class="txt">Відкрийте посилання вище у <b>Safari</b> <i>(обов'язково в Safari, не в іншому браузері)</i></div></li>
+        <li><div class="txt">Відкрийте посилання вище у <b>Safari</b> <i>(обов'язково в Safari, навіть якщо у вас за замовчуванням інший браузер — на iPhone встановлення PWA працює лише через Safari)</i></div></li>
         <li><div class="txt">Натисніть кнопку <b>«Поділитися»</b> <i>(іконка квадрата зі стрілкою вгорі або внизу екрана)</i></div></li>
         <li><div class="txt">Оберіть <b>«На екран Домівки»</b> у списку дій</div></li>
         <li><div class="txt">Натисніть <b>«Додати»</b> у верхньому правому куті</div></li>
@@ -115,6 +145,15 @@ body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var
         <li><div class="txt">Натисніть меню <b>⋮</b> у правому верхньому куті</div></li>
         <li><div class="txt">Оберіть <b>«Додати на головний екран»</b> або <b>«Встановити застосунок»</b></div></li>
         <li><div class="txt">Підтвердіть — іконка з'явиться серед інших застосунків</div></li>
+      </ol>
+    </div>
+
+    <div class="install-panel" id="panel-desktop">
+      <ol class="steps">
+        <li><div class="txt">Відкрийте посилання вище у <b>Chrome</b> на комп'ютері <i>(Windows, Mac або Linux)</i></div></li>
+        <li><div class="txt">Знайдіть іконку встановлення <b>⊕</b> у правій частині адресного рядка <i>(або меню ⋮ → «Встановити застосунок»)</i></div></li>
+        <li><div class="txt">Натисніть <b>«Встановити»</b> у вікні, що з'явиться</div></li>
+        <li><div class="txt">Застосунок відкриється в окремому вікні та з'явиться серед інших програм на комп'ютері</div></li>
       </ol>
     </div>
   </div>
