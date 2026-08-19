@@ -6,7 +6,7 @@ const API_BASE = 'https://primary-production-4b93e.up.railway.app/webhook';
 // VAPID public key (той самой пары, что сгенерирована для проекта) — публичный, безопасно
 // держать прямо в клиентском коде, приватный остаётся только в n8n
 const VAPID_PUBLIC_KEY = 'BNnz-jdGhB2nz3Meh4yN4A6-VageQqYiQFX_BLpSBjhWxFCrOQ4Sq491vMVVp8qbUTXNHoF4AnfW6L9dJCmSjgE';
-const APP_VERSION = 'v17'; // bump this on every real code change — visible on screen bottom-right,
+const APP_VERSION = 'v18'; // bump this on every real code change — visible on screen bottom-right,
 // so it's possible to confirm at a glance whether a new deploy actually reached the device,
 // instead of asking "did you upload it?" every time.
 document.addEventListener('DOMContentLoaded', () => {
@@ -90,9 +90,7 @@ function doLogout() {
   clearSession();
   State.token = null;
   State.user = null;
-  document.getElementById('login-input').value = '';
-  document.getElementById('password-input').value = '';
-  Router.show('login');
+  window.location.href = '../index.html';
 }
 
 // ─── API HELPER ───────────────────────────────────────────
@@ -339,8 +337,7 @@ document.getElementById('password-input').addEventListener('keydown', e => { if 
 // ─── SCREEN: OBJECTS ──────────────────────────────────────
 const Objects = {
   async load() {
-    document.getElementById('user-avatar').textContent = (State.user?.first_name || '?')[0].toUpperCase();
-    const list = document.getElementById('objects-list');
+      const list = document.getElementById('objects-list');
     const empty = document.getElementById('objects-empty');
     list.innerHTML = '<div class="card-sub" style="text-align:center;padding:20px 0">Завантаження…</div>';
     empty.style.display = 'none';
@@ -1300,6 +1297,10 @@ const Client = {
   }
 };
 
+document.getElementById('btn-shopper-profile-open')?.addEventListener('click', () => {
+  Router.show('client-profile');
+  Client.loadProfile();
+});
 document.getElementById('btn-shopper-reports-open')?.addEventListener('click', () => {
   Router.show('client-reports');
   Client.loadReports();
@@ -1320,15 +1321,14 @@ document.getElementById('btn-client-profile-open')?.addEventListener('click', ()
   Client.loadProfile();
 });
 document.getElementById('btn-client-profile-back')?.addEventListener('click', () => {
-  Router.show('client-reports');
-  Client.loadReports();
+  Router.show('objects');
+  Objects.load();
 });
 document.getElementById('btn-client-profile-save')?.addEventListener('click', Client.saveProfile);
 
 // ─── INIT ─────────────────────────────────────────────────
 updateOnlineBanner();
 if (State.token && State.user) {
-  document.getElementById('user-avatar').textContent = (State.user?.first_name || '?')[0].toUpperCase();
   if (State.user.role === 'client') {
     Router.show('client-reports');
     Client.loadReports();
