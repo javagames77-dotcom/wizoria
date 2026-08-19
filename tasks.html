@@ -201,11 +201,13 @@ tr:last-child td{border-bottom:none}
           </div>
           <div style="display:flex;gap:6px">
             <button class="btn-outline" id="cancel-task-btn">Скасувати</button>
+            <button class="btn-outline" id="use-template-btn"><i class="ti ti-copy"></i>Створити з шаблону</button>
             <button class="btn-primary" id="save-task-btn"><i class="ti ti-device-floppy"></i>Зберегти</button>
           </div>
         </div>
 
         <div class="alert err" id="task-form-alert"></div>
+        <div class="alert ok" id="task-form-alert-ok"></div>
 
         <div class="form-row">
           <div class="form-field">
@@ -252,7 +254,10 @@ tr:last-child td{border-bottom:none}
             <div class="add-form-title">Завдання #<span id="edit-task-id"></span></div>
             <div class="add-form-sub" id="edit-task-sub">—</div>
           </div>
-          <button class="btn-outline" id="edit-back-btn">Закрити</button>
+          <div style="display:flex;gap:6px">
+            <button class="btn-outline" id="save-as-template-btn"><i class="ti ti-copy"></i>Зберегти як шаблон</button>
+            <button class="btn-outline" id="edit-back-btn">Закрити</button>
+          </div>
         </div>
         <div class="alert err" id="edit-form-alert"></div>
         <div class="alert ok" id="edit-form-alert-ok"></div>
@@ -404,6 +409,7 @@ async function loadTasks() {
 }
 
 let currentEditTaskId = null;
+let currentEditTaskData = null;
 const STATUS_LABELS = { assigned: 'Призначено', in_progress: 'В процесі', submitted: 'Очікує', approved: 'Здано', rejected: 'Відхилено', needs_revision: 'На доопрацюванні' };
 
 async function openTaskDetail(taskId) {
@@ -428,6 +434,7 @@ async function reloadEditView() {
     document.getElementById('edit-form-alert').className = 'alert err show';
     return;
   }
+  currentEditTaskData = data;
   const t = data.task;
   const deadlineStr = new Date(t.deadline).toLocaleDateString('uk-UA');
   document.getElementById('edit-task-sub').textContent = `${t.object_name} · ${t.shopper_first_name} ${t.shopper_last_name} · Дедлайн: ${deadlineStr} · ${STATUS_LABELS[t.status] || t.status}`;
@@ -515,6 +522,36 @@ async function addRequirementToTask(kind, payload) {
 document.getElementById('edit-back-btn').addEventListener('click', () => {
   document.getElementById('edit-view').style.display = 'none';
   showListView();
+});
+
+document.getElementById('save-as-template-btn').addEventListener('click', async () => {
+  const data = currentEditTaskData;
+  if (!data) return;
+  const photos = data.photo_requirements || [];
+  const audios = data.audio_requirements || [];
+  const quests = data.questionnaires || [];
+  if (photos.length === 0 && audios.length === 0 && quests.length === 0) {
+    await showAlertDialog('У цього завдання ще немає жодної вимоги — нема чого зберігати як шаблон.', 'Порожньо');
+    return;
+  }
+  const name = (prompt("Назва шаблону (наприклад: «Стандартна перевірка кінотеатру»)") || '').trim();
+  if (!name) return;
+  try {
+    const res = await fetch(`${API_BASE}/ga/admin/tasks/templates`, {
+      method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        photo_requirements: photos.map(p => ({ title: p.title, description: p.description, required_count: p.required_count })),
+        audio_requirements: audios.map(a => ({ title: a.title, instruction: a.instruction, section_key: a.section_key, min_duration_sec: a.min_duration_sec })),
+        questionnaire_ids: quests.map(q => q.questionnaire_id)
+      })
+    });
+    const result = await res.json();
+    if (!result.success) { await showAlertDialog(result.error || 'Помилка', 'Помилка'); return; }
+    await showAlertDialog('Шаблон збережено — доступний при створенні нового завдання.', 'Готово');
+  } catch (err) {
+    await showAlertDialog("Немає з'єднання з сервером", 'Помилка');
+  }
 });
 
 document.getElementById('ef-save-btn').addEventListener('click', async () => {
@@ -909,6 +946,73 @@ document.getElementById('save-task-btn').addEventListener('click', async () => {
   } catch (err) {
     console.error('Post-save UI error (завдання вже збережено):', err);
   }
+});
+
+document.getElementById('use-template-btn').addEventListener('click', async () => {
+  const objectId = document.getElementById('f-object').value;
+  const shopperId = document.getElementById('f-shopper').value;
+  const deadline = document.getElementById('f-deadline').value;
+  const errEl = document.getElementById('task-form-alert');
+  const okEl = document.getElementById('task-form-alert-ok');
+  errEl.className = 'alert err'; okEl.className = 'alert ok';
+
+  if (!deadline) {
+    document.getElementById('err-deadline').textContent = "Дедлайн обов'язковий";
+    document.getElementById('err-deadline').classList.add('show');
+    return;
+  }
+
+  let templates = [];
+  try {
+    const res = await fetch(`${API_BASE}/ga/admin/tasks/templates`, { headers: authHeaders() });
+    const data = await res.json();
+    templates = data.templates || [];
+  } catch (err) {
+    errEl.textContent = "Немає з'єднання з сервером"; errEl.className = 'alert err show';
+    return;
+  }
+  if (templates.length === 0) {
+    errEl.textContent = 'Шаблонів ще немає — спочатку створіть хоча б один (кнопка "Зберегти як шаблон" у редагуванні завдання).';
+    errEl.className = 'alert err show';
+    return;
+  }
+
+  const options = templates.map(t => `<option value="${t.id}">${t.name} (${t.photo_count} фото, ${t.audio_count} аудіо, ${t.questionnaire_count} анкет)</option>`).join('');
+  document.getElementById('mini-form-slot').innerHTML = `
+    <div class="mini-form">
+      <div class="mini-form-title">Створити з шаблону</div>
+      <div class="form-field" style="margin-bottom:8px"><label>Шаблон</label><select id="tf-template">${options}</select></div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Об'єкт/покупець/дедлайн беруться з полів вище. Вимоги, додані вручну на цій сторінці, будуть проігноровані — застосується лише шаблон.</div>
+      <div class="mini-form-actions">
+        <button class="btn-outline btn-small" id="tf-cancel">Скасувати</button>
+        <button class="btn-primary btn-small" id="tf-apply">Створити</button>
+      </div>
+    </div>
+  `;
+  document.getElementById('tf-cancel').addEventListener('click', () => { document.getElementById('mini-form-slot').innerHTML = ''; });
+  document.getElementById('tf-apply').addEventListener('click', async () => {
+    const btn = document.getElementById('tf-apply');
+    btn.disabled = true; btn.textContent = 'Створюємо…';
+    try {
+      const res = await fetch(`${API_BASE}/ga/admin/tasks/templates/apply`, {
+        method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          template_id: Number(document.getElementById('tf-template').value),
+          object_id: Number(objectId), shopper_id: Number(shopperId),
+          deadline: new Date(deadline + 'T18:00:00').toISOString()
+        })
+      });
+      const data = await res.json();
+      if (!data.success) { errEl.textContent = data.error || 'Помилка'; errEl.className = 'alert err show'; return; }
+      document.getElementById('mini-form-slot').innerHTML = '';
+      await showAlertDialog('Завдання створено з шаблону.', 'Готово');
+      showListView();
+    } catch (err) {
+      errEl.textContent = "Немає з'єднання з сервером"; errEl.className = 'alert err show';
+    } finally {
+      btn.disabled = false; btn.textContent = 'Створити';
+    }
+  });
 });
 
 async function init() {
