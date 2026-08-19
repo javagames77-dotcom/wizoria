@@ -323,7 +323,53 @@ function renderCriteria() {
     el.addEventListener('click', () => deleteCriterion(Number(el.dataset.id)));
   });
   list.querySelectorAll('[data-action="edit"]').forEach(el => {
-    el.addEventListener('click', () => showAlertDialog('Редагування тексту питання після створення поки не підтримується бекендом — можна видалити і додати заново.', 'Редагування'));
+    el.addEventListener('click', () => editCriterion(Number(el.dataset.id)));
+  });
+}
+
+function editCriterion(id) {
+  const c = criteria.find(x => x.id === id);
+  if (!c) return;
+  document.getElementById('q-mini-form-slot').innerHTML = `
+    <div class="mini-form">
+      <div class="mini-form-title">Редагування питання</div>
+      <div class="form-field" style="margin-bottom:9px"><label>Текст питання</label><input type="text" id="ef-text" value="${c.question_text.replace(/"/g, '&quot;')}"></div>
+      <div class="form-row">
+        <div class="form-field"><label>Вага (0–100)</label><input type="number" id="ef-weight" value="${c.weight}" min="0" max="100"></div>
+      </div>
+      <div class="chk-row"><input type="checkbox" id="ef-critical" ${c.is_critical ? 'checked' : ''}><label for="ef-critical">Обов'язкове (критичний критерій)</label></div>
+      <div class="mini-form-actions">
+        <button class="btn-outline btn-small" id="ef-cancel">Скасувати</button>
+        <button class="btn-primary btn-small" id="ef-save">Зберегти</button>
+      </div>
+    </div>
+  `;
+  document.getElementById('ef-cancel').addEventListener('click', () => { document.getElementById('q-mini-form-slot').innerHTML = ''; });
+  document.getElementById('ef-save').addEventListener('click', async () => {
+    const text = document.getElementById('ef-text').value.trim();
+    if (!text) return;
+    const btn = document.getElementById('ef-save');
+    btn.disabled = true; btn.textContent = 'Зберігаємо…';
+    try {
+      const res = await fetch(`${API_BASE}/ga/admin/criteria/update`, {
+        method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          criterion_id: id,
+          question_text: text,
+          weight: Number(document.getElementById('ef-weight').value) || c.weight,
+          is_critical: document.getElementById('ef-critical').checked
+        })
+      });
+      const data = await res.json();
+      if (!data.success) { await showAlertDialog(data.error || 'Помилка', 'Помилка'); return; }
+      Object.assign(c, data.criterion);
+      document.getElementById('q-mini-form-slot').innerHTML = '';
+      renderCriteria();
+    } catch (err) {
+      await showAlertDialog("Немає з'єднання з сервером", 'Помилка');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Зберегти';
+    }
   });
 }
 
@@ -417,7 +463,12 @@ document.getElementById('add-question-btn').addEventListener('click', () => {
       const data = await res.json();
       if (!data.success) { await showAlertDialog(data.error || 'Помилка', 'Помилка'); return; }
       document.getElementById('q-mini-form-slot').innerHTML = '';
-      await loadCriteria();
+      // РАНІШЕ: await loadCriteria() -- повний перезапит з сервера тихо стирав
+      // ще не збережене перетягування (save-order-btn натиснути забули), і виглядало,
+      // ніби порядок "збився". Тепер просто дописуємо нове питання в кінець локального
+      // масиву -- без перезапиту, без втрати несхваленого порядку.
+      criteria.push(data.criterion);
+      renderCriteria();
     } catch (err) {
       await showAlertDialog("Немає з'єднання з сервером", 'Помилка');
     } finally {
