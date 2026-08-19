@@ -365,8 +365,57 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
     </main>
   </section>
 
+  <!-- ================= SCREEN: CLIENT REPORTS (роль client) ================= -->
+  <section class="screen" id="screen-client-reports">
+    <div class="topbar">
+      <div class="ttl">Мої звіти</div>
+      <button class="avatar" id="btn-client-profile-open" style="cursor:pointer;border:none" title="Профіль">?</button>
+    </div>
+    <main>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
+        <select class="fm-input" id="cf-object" style="height:34px;width:auto;flex:1;min-width:110px;font-size:12px;padding:0 8px">
+          <option value="">Об'єкт: усі</option>
+        </select>
+        <input class="fm-input" type="date" id="cf-date-from" style="height:34px;width:auto;flex:1;min-width:110px;font-size:12px;padding:0 8px">
+        <input class="fm-input" type="date" id="cf-date-to" style="height:34px;width:auto;flex:1;min-width:110px;font-size:12px;padding:0 8px">
+        <select class="fm-input" id="cf-decision" style="height:34px;width:auto;flex:1;min-width:110px;font-size:12px;padding:0 8px">
+          <option value="">Рішення: усі</option>
+          <option value="auto_approved">Схвалено (авто)</option>
+          <option value="approved">Схвалено</option>
+          <option value="rejected">Відхилено</option>
+          <option value="pending">Очікує</option>
+        </select>
+        <button class="fm-btn sm" id="cf-apply" style="width:auto;margin-top:0;padding:0 14px">Застосувати</button>
+      </div>
+      <div id="client-reports-list"></div>
+      <div class="empty-state" id="client-reports-empty" style="display:none">
+        <i class="ti ti-report" aria-hidden="true"></i>
+        Звітів поки немає
+      </div>
+    </main>
+  </section>
+
+  <!-- ================= SCREEN: CLIENT PROFILE (роль client) ================= -->
+  <section class="screen" id="screen-client-profile">
+    <div class="topbar">
+      <button class="back" id="btn-client-profile-back"><i class="ti ti-chevron-left" aria-hidden="true"></i> Назад</button>
+      <div class="ttl">Мій профіль</div>
+    </div>
+    <main>
+      <label class="fm-label" for="cp-name">Ім'я та прізвище</label>
+      <input class="fm-input" type="text" id="cp-name">
+      <label class="fm-label" for="cp-phone">Телефон</label>
+      <input class="fm-input" type="text" id="cp-phone" placeholder="+380XXXXXXXXX">
+      <label class="fm-label" for="cp-password">Новий пароль</label>
+      <input class="fm-input" type="password" id="cp-password" placeholder="Залиште порожнім, щоб не змінювати">
+      <div class="fm-alert" id="client-profile-alert"></div>
+      <div class="spacer"></div>
+      <button class="fm-btn" id="btn-client-profile-save" type="button">Зберегти профіль</button>
+    </main>
+  </section>
+
 </div>
 
-<script src="app.js?v=15"></script>
+<script src="app.js?v=16"></script>
 </body>
 </html>
