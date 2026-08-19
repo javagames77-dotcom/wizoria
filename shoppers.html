@@ -56,6 +56,7 @@ body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var
 .alert{padding:9px 12px;border-radius:7px;font-size:12px;margin-bottom:10px;display:none}
 .alert.show{display:block}
 .alert.err{background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger-border)}
+.alert.ok{background:var(--success-bg);color:var(--success);border:1px solid var(--success-border)}
 
 .card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;box-shadow:var(--card-shadow);overflow:hidden}
 table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}
@@ -252,6 +253,38 @@ tr:last-child td{border-bottom:none}
         <div class="stat-card"><div class="stat-value" id="sd-checks">—</div><div class="stat-label">Перевірок виконано</div></div>
         <div class="stat-card"><div class="stat-value success" id="sd-score">—</div><div class="stat-label">Середній скор</div></div>
         <div class="stat-card"><div class="stat-value danger" id="sd-anomalies">—</div><div class="stat-label">Аномалій</div></div>
+      </div>
+
+      <div class="section-label">Профіль</div>
+      <div class="alert err" id="sd-edit-alert"></div>
+      <div class="alert ok" id="sd-edit-alert-ok"></div>
+      <div class="form-row">
+        <div class="form-field"><label>Ім'я</label><input type="text" id="sd-first-name"></div>
+        <div class="form-field"><label>Прізвище</label><input type="text" id="sd-last-name"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-field"><label>Email</label><input type="text" id="sd-email"></div>
+        <div class="form-field"><label>Логін</label><input type="text" id="sd-login"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-field"><label>Телефон</label><input type="text" id="sd-phone" placeholder="+380XXXXXXXXX"></div>
+        <div class="form-field"><label>Місто</label><input type="text" id="sd-city"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-field"><label>Вік</label><input type="number" id="sd-age" min="18" max="80"></div>
+        <div class="form-field">
+          <label>Стать</label>
+          <select id="sd-gender"><option value="">—</option><option value="male">Чоловіча</option><option value="female">Жіноча</option></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field">
+          <label>Новий пароль (необов'язково)</label>
+          <input type="password" id="sd-password" placeholder="Залиште порожнім, щоб не змінювати">
+        </div>
+        <div class="form-field" style="display:flex;align-items:flex-end">
+          <button class="btn-primary" id="sd-save-profile-btn"><i class="ti ti-device-floppy"></i>Зберегти профіль</button>
+        </div>
       </div>
 
       <div class="section-label">Статус акаунту</div>
@@ -491,6 +524,47 @@ const STATUS_META = {
 };
 let currentManageUser = null;
 
+async function saveShopperProfile() {
+  const u = currentManageUser;
+  const btn = document.getElementById('sd-save-profile-btn');
+  const errEl = document.getElementById('sd-edit-alert');
+  const okEl = document.getElementById('sd-edit-alert-ok');
+  errEl.className = 'alert err'; okEl.className = 'alert ok';
+
+  const body = {
+    user_id: u.id,
+    first_name: document.getElementById('sd-first-name').value.trim(),
+    last_name: document.getElementById('sd-last-name').value.trim(),
+    email: document.getElementById('sd-email').value.trim(),
+    login: document.getElementById('sd-login').value.trim(),
+    phone: document.getElementById('sd-phone').value.trim(),
+    city: document.getElementById('sd-city').value.trim(),
+    age: document.getElementById('sd-age').value === '' ? null : Number(document.getElementById('sd-age').value),
+    gender: document.getElementById('sd-gender').value || null
+  };
+  const pwd = document.getElementById('sd-password').value;
+  if (pwd) body.password = pwd;
+
+  btn.disabled = true; btn.textContent = 'Зберігаємо…';
+  try {
+    const res = await fetch(`${API_BASE}/ga/admin/users/update`, {
+      method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!data.success) { errEl.textContent = data.error || 'Помилка'; errEl.className = 'alert err show'; return; }
+    Object.assign(u, data.user);
+    okEl.textContent = 'Профіль збережено.'; okEl.className = 'alert ok show';
+    document.getElementById('sd-password').value = '';
+    await loadUsers();
+  } catch (err) {
+    errEl.textContent = "Немає з'єднання з сервером"; errEl.className = 'alert err show';
+  } finally {
+    btn.disabled = false; btn.innerHTML = '<i class="ti ti-device-floppy"></i>Зберегти профіль';
+  }
+}
+document.getElementById('sd-save-profile-btn').addEventListener('click', saveShopperProfile);
+
 async function openManage(userId) {
   currentManageUser = allUsers.find(u => u.id === userId);
   if (!currentManageUser) return;
@@ -552,6 +626,18 @@ async function renderShopperDetail() {
   }
   document.getElementById('sd-name').textContent = `${u.first_name} ${u.last_name}`;
   document.getElementById('sd-meta').textContent = `${u.email}${u.city ? ' · ' + u.city : ''}`;
+
+  document.getElementById('sd-first-name').value = u.first_name || '';
+  document.getElementById('sd-last-name').value = u.last_name || '';
+  document.getElementById('sd-email').value = u.email || '';
+  document.getElementById('sd-login').value = u.login || '';
+  document.getElementById('sd-phone').value = u.phone || '';
+  document.getElementById('sd-city').value = u.city || '';
+  document.getElementById('sd-age').value = u.age ?? '';
+  document.getElementById('sd-gender').value = u.gender || '';
+  document.getElementById('sd-password').value = '';
+  document.getElementById('sd-edit-alert').className = 'alert err';
+  document.getElementById('sd-edit-alert-ok').className = 'alert ok';
 
   document.getElementById('sd-checks').textContent = '—';
   document.getElementById('sd-score').textContent = '—';
