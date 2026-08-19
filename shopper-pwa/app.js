@@ -1220,7 +1220,7 @@ const Client = {
     const q = new URLSearchParams();
     Object.entries(Client.filters).forEach(([k, v]) => { if (v) q.set(k, v); });
     try {
-      const { data } = await api('/ga/client/submissions?' + q.toString());
+      const { data } = await api('/ga/shopper/my-reports?' + q.toString());
       if (!data.success) {
         list.innerHTML = `<div class="fm-alert show err">${escapeHtml(data.error || 'Не вдалося завантажити звіти')}</div>`;
         return;
@@ -1300,6 +1300,14 @@ const Client = {
   }
 };
 
+document.getElementById('btn-shopper-reports-open')?.addEventListener('click', () => {
+  Router.show('client-reports');
+  Client.loadReports();
+});
+document.getElementById('btn-shopper-reports-back')?.addEventListener('click', () => {
+  Router.show('objects');
+  Objects.load();
+});
 document.getElementById('cf-apply')?.addEventListener('click', () => {
   Client.filters.object_id = document.getElementById('cf-object').value;
   Client.filters.date_from = document.getElementById('cf-date-from').value;
