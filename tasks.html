@@ -98,6 +98,7 @@ tr:last-child td{border-bottom:none}
 .alert{padding:9px 12px;border-radius:7px;font-size:12px;margin-bottom:10px;display:none}
 .alert.show{display:block}
 .alert.err{background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger-border)}
+.alert.ok{background:var(--success-bg);color:var(--success);border:1px solid var(--success-border)}
 
 .auth-gate{max-width:420px;margin:80px auto;text-align:center;padding:0 20px}
 .auth-gate p{color:var(--muted);font-size:13px;margin:10px 0 18px;line-height:1.6}
@@ -254,9 +255,29 @@ tr:last-child td{border-bottom:none}
           <button class="btn-outline" id="edit-back-btn">Закрити</button>
         </div>
         <div class="alert err" id="edit-form-alert"></div>
-        <div style="font-size:11px;color:var(--muted);margin-bottom:12px">
-          Поля об'єкту/покупця/дедлайну незмінні після створення (бек цього поки не підтримує) — можна редагувати лише перелік вимог нижче.
+        <div class="alert ok" id="edit-form-alert-ok"></div>
+
+        <div class="section-label">Об'єкт, покупець, дедлайн</div>
+        <div class="form-row">
+          <div class="form-field">
+            <label>Об'єкт</label>
+            <select id="ef-object"></select>
+          </div>
+          <div class="form-field">
+            <label>Покупець</label>
+            <select id="ef-shopper"></select>
+          </div>
         </div>
+        <div class="form-row">
+          <div class="form-field">
+            <label>Дедлайн</label>
+            <input type="date" id="ef-deadline">
+          </div>
+          <div class="form-field optional" style="display:flex;align-items:flex-end">
+            <button class="btn-primary" id="ef-save-btn"><i class="ti ti-device-floppy"></i>Зберегти зміни</button>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:12px" id="ef-note"></div>
 
         <div class="section-label">Вимоги</div>
         <div class="add-req-row">
@@ -407,6 +428,23 @@ async function reloadEditView() {
   const deadlineStr = new Date(t.deadline).toLocaleDateString('uk-UA');
   document.getElementById('edit-task-sub').textContent = `${t.object_name} · ${t.shopper_first_name} ${t.shopper_last_name} · Дедлайн: ${deadlineStr} · ${STATUS_LABELS[t.status] || t.status}`;
 
+  // Об'єкт/покупець редагуємі лише поки завдання ще не почате (status='assigned') --
+  // той самий принцип, що й для видалення завдання. Дедлайн можна міняти завжди.
+  const objSel = document.getElementById('ef-object');
+  const shopSel = document.getElementById('ef-shopper');
+  objSel.innerHTML = objectsList.map(o => `<option value="${o.id}">${o.name}</option>`).join('');
+  shopSel.innerHTML = shoppersList.map(u => `<option value="${u.id}">${u.first_name} ${u.last_name}</option>`).join('');
+  objSel.value = t.object_id;
+  shopSel.value = t.shopper_id;
+  document.getElementById('ef-deadline').value = new Date(t.deadline).toISOString().slice(0, 10);
+
+  const isEditable = t.status === 'assigned';
+  objSel.disabled = !isEditable;
+  shopSel.disabled = !isEditable;
+  document.getElementById('ef-note').textContent = isEditable
+    ? ''
+    : "Об'єкт і покупця можна змінити лише поки завдання в статусі «Призначено» — зараз доступний лише дедлайн.";
+
   const wrap = document.getElementById('edit-req-chips');
   wrap.innerHTML = '';
   (data.photo_requirements || []).forEach(r => {
@@ -473,6 +511,33 @@ async function addRequirementToTask(kind, payload) {
 document.getElementById('edit-back-btn').addEventListener('click', () => {
   document.getElementById('edit-view').style.display = 'none';
   showListView();
+});
+
+document.getElementById('ef-save-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('ef-save-btn');
+  const okEl = document.getElementById('edit-form-alert-ok');
+  const errEl = document.getElementById('edit-form-alert');
+  okEl.className = 'alert ok'; errEl.className = 'alert err';
+  const objSel = document.getElementById('ef-object');
+  const shopSel = document.getElementById('ef-shopper');
+  const body = { task_id: currentEditTaskId, deadline: document.getElementById('ef-deadline').value };
+  if (!objSel.disabled) body.object_id = Number(objSel.value);
+  if (!shopSel.disabled) body.shopper_id = Number(shopSel.value);
+  btn.disabled = true; btn.textContent = 'Зберігаємо…';
+  try {
+    const res = await fetch(`${API_BASE}/ga/admin/tasks/update`, {
+      method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!data.success) { errEl.textContent = data.error || 'Помилка'; errEl.className = 'alert err show'; return; }
+    okEl.textContent = 'Збережено.'; okEl.className = 'alert ok show';
+    await reloadEditView();
+  } catch (err) {
+    errEl.textContent = "Немає з'єднання з сервером"; errEl.className = 'alert err show';
+  } finally {
+    btn.disabled = false; btn.innerHTML = '<i class="ti ti-device-floppy"></i>Зберегти зміни';
+  }
 });
 
 document.getElementById('edit-add-photo-btn').addEventListener('click', () => {
