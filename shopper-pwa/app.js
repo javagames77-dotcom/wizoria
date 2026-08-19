@@ -6,7 +6,7 @@ const API_BASE = 'https://primary-production-4b93e.up.railway.app/webhook';
 // VAPID public key (той самой пары, что сгенерирована для проекта) — публичный, безопасно
 // держать прямо в клиентском коде, приватный остаётся только в n8n
 const VAPID_PUBLIC_KEY = 'BNnz-jdGhB2nz3Meh4yN4A6-VageQqYiQFX_BLpSBjhWxFCrOQ4Sq491vMVVp8qbUTXNHoF4AnfW6L9dJCmSjgE';
-const APP_VERSION = 'v15'; // bump this on every real code change — visible on screen bottom-right,
+const APP_VERSION = 'v16'; // bump this on every real code change — visible on screen bottom-right,
 // so it's possible to confirm at a glance whether a new deploy actually reached the device,
 // instead of asking "did you upload it?" every time.
 document.addEventListener('DOMContentLoaded', () => {
@@ -313,9 +313,14 @@ async function doLogin() {
     const { data } = await api('/ga/auth/login', { method: 'POST', body: { login, password } });
     if (data.success && data.token) {
       saveAuth(data.token, data.user);
-      Router.show('objects');
-      Objects.load();
-      PushSetup.init();
+      if (data.user.role === 'client') {
+        Router.show('client-reports');
+        Client.loadReports();
+      } else {
+        Router.show('objects');
+        Objects.load();
+        PushSetup.init();
+      }
     } else {
       alertEl.textContent = data.error || 'Не вдалося увійти';
       alertEl.classList.add('show');
@@ -1204,14 +1209,127 @@ if ('serviceWorker' in navigator) {
   }).catch(e => console.warn('SW registration failed', e));
 }
 
+// ─── CLIENT (роль client — окремий, простий кабінет: звіти по своїй мережі + профіль) ──
+const Client = {
+  filters: { object_id: '', date_from: '', date_to: '', decision: '' },
+
+  async loadReports() {
+    const list = document.getElementById('client-reports-list');
+    const empty = document.getElementById('client-reports-empty');
+    list.innerHTML = '<div class="card-sub" style="text-align:center;padding:20px 0">Завантаження…</div>';
+    const q = new URLSearchParams();
+    Object.entries(Client.filters).forEach(([k, v]) => { if (v) q.set(k, v); });
+    try {
+      const { data } = await api('/ga/client/submissions?' + q.toString());
+      if (!data.success) {
+        list.innerHTML = `<div class="fm-alert show err">${escapeHtml(data.error || 'Не вдалося завантажити звіти')}</div>`;
+        return;
+      }
+      const rows = data.submissions || [];
+      list.innerHTML = '';
+      empty.style.display = rows.length === 0 ? 'block' : 'none';
+
+      // Заповнюємо фільтр "Об'єкт" унікальними значеннями з отриманих звітів --
+      // окремого ендпоінта під список об'єктів клієнта поки нема, а тут дані вже є.
+      const objSelect = document.getElementById('cf-object');
+      if (objSelect.options.length === 1) {
+        const seen = new Set();
+        rows.forEach(r => {
+          if (seen.has(r.object_id)) return;
+          seen.add(r.object_id);
+          const opt = document.createElement('option');
+          opt.value = r.object_id; opt.textContent = r.object_name;
+          objSelect.appendChild(opt);
+        });
+      }
+      const DECISION_LABELS = {
+        pending: ['Очікує', 'muted'], auto_approved: ['Схвалено', 'success'],
+        approved: ['Схвалено', 'success'], rejected: ['Відхилено', 'warn'], needs_revision: ['На доопрацюванні', 'warn']
+      };
+      rows.forEach(r => {
+        const [label, cls] = DECISION_LABELS[r.decision] || ['—', 'muted'];
+        const score = r.object_score !== null && r.object_score !== undefined ? Math.round(r.object_score) : '—';
+        const date = r.submitted_at ? new Date(r.submitted_at).toLocaleDateString('uk-UA') : '—';
+        list.insertAdjacentHTML('beforeend', `
+          <div class="card done" style="cursor:default">
+            <div class="card-row">
+              <div class="card-title">${escapeHtml(r.object_name)}</div>
+              <span class="badge ${cls === 'success' ? 'success' : cls === 'warn' ? 'warn' : 'muted'}">${score}</span>
+            </div>
+            <div class="card-row">
+              <div class="card-sub">${date}</div>
+              <span class="badge ${cls === 'success' ? 'success' : cls === 'warn' ? 'warn' : 'muted'}">${label}</span>
+            </div>
+          </div>
+        `);
+      });
+    } catch (e) {
+      list.innerHTML = `<div class="fm-alert show err">Немає з'єднання з сервером</div>`;
+    }
+  },
+
+  async loadProfile() {
+    const u = State.user;
+    document.getElementById('cp-name').value = `${u.first_name || ''} ${u.last_name || ''}`.trim();
+    document.getElementById('cp-phone').value = u.phone || '';
+    document.getElementById('cp-password').value = '';
+  },
+
+  async saveProfile() {
+    const btn = document.getElementById('btn-client-profile-save');
+    const alertEl = document.getElementById('client-profile-alert');
+    alertEl.className = 'fm-alert';
+    const [first_name, ...rest] = document.getElementById('cp-name').value.trim().split(' ');
+    const body = { user_id: State.user.id, first_name, last_name: rest.join(' '), phone: document.getElementById('cp-phone').value.trim() };
+    const pwd = document.getElementById('cp-password').value;
+    if (pwd) body.password = pwd;
+
+    btn.disabled = true; btn.textContent = 'Зберігаємо…';
+    try {
+      const { data } = await api('/ga/admin/users/update', { method: 'POST', body });
+      if (!data.success) { alertEl.textContent = data.error || 'Помилка'; alertEl.className = 'fm-alert show err'; return; }
+      State.user = { ...State.user, ...data.user };
+      localStorage.setItem('ga_user', JSON.stringify(State.user));
+      document.getElementById('cp-password').value = '';
+      alertEl.textContent = 'Профіль збережено.'; alertEl.className = 'fm-alert show ok';
+    } catch (e) {
+      alertEl.textContent = "Немає з'єднання з сервером"; alertEl.className = 'fm-alert show err';
+    } finally {
+      btn.disabled = false; btn.textContent = 'Зберегти профіль';
+    }
+  }
+};
+
+document.getElementById('cf-apply')?.addEventListener('click', () => {
+  Client.filters.object_id = document.getElementById('cf-object').value;
+  Client.filters.date_from = document.getElementById('cf-date-from').value;
+  Client.filters.date_to = document.getElementById('cf-date-to').value;
+  Client.filters.decision = document.getElementById('cf-decision').value;
+  Client.loadReports();
+});
+document.getElementById('btn-client-profile-open')?.addEventListener('click', () => {
+  Router.show('client-profile');
+  Client.loadProfile();
+});
+document.getElementById('btn-client-profile-back')?.addEventListener('click', () => {
+  Router.show('client-reports');
+  Client.loadReports();
+});
+document.getElementById('btn-client-profile-save')?.addEventListener('click', Client.saveProfile);
+
 // ─── INIT ─────────────────────────────────────────────────
 updateOnlineBanner();
 if (State.token && State.user) {
   document.getElementById('user-avatar').textContent = (State.user?.first_name || '?')[0].toUpperCase();
-  const resumed = restoreSession();
-  if (!resumed) {
-    Router.show('objects');
-    Objects.load();
+  if (State.user.role === 'client') {
+    Router.show('client-reports');
+    Client.loadReports();
+  } else {
+    const resumed = restoreSession();
+    if (!resumed) {
+      Router.show('objects');
+      Objects.load();
+    }
+    PushSetup.init();
   }
-  PushSetup.init();
 }
