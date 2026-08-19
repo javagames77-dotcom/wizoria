@@ -125,16 +125,25 @@ body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var
     </div>
 
     <div class="tabs">
-      <div class="tab active" data-panel="iphone">iPhone</div>
+      <div class="tab active" data-panel="iphone">iPhone (Safari)</div>
+      <div class="tab" data-panel="iphone-chrome">iPhone (Chrome)</div>
       <div class="tab" data-panel="android">Android</div>
-      <div class="tab" data-panel="desktop">Комп'ютер (Chrome)</div>
     </div>
 
     <div class="install-panel active" id="panel-iphone">
       <ol class="steps">
-        <li><div class="txt">Відкрийте посилання вище у <b>Safari</b> <i>(обов'язково в Safari, навіть якщо у вас за замовчуванням інший браузер — на iPhone встановлення PWA працює лише через Safari)</i></div></li>
+        <li><div class="txt">Відкрийте посилання вище у <b>Safari</b></div></li>
         <li><div class="txt">Натисніть кнопку <b>«Поділитися»</b> <i>(іконка квадрата зі стрілкою вгорі або внизу екрана)</i></div></li>
         <li><div class="txt">Оберіть <b>«На екран Домівки»</b> у списку дій</div></li>
+        <li><div class="txt">Натисніть <b>«Додати»</b> у верхньому правому куті</div></li>
+      </ol>
+    </div>
+
+    <div class="install-panel" id="panel-iphone-chrome">
+      <ol class="steps">
+        <li><div class="txt">Відкрийте посилання вище у <b>Chrome</b> на iPhone</div></li>
+        <li><div class="txt">Натисніть кнопку <b>«Поділитися»</b> <i>(іконка квадрата зі стрілкою внизу екрана)</i> <b>або</b> меню <b>⋯</b> у верхньому правому куті</div></li>
+        <li><div class="txt">Оберіть <b>«На екран Домівки»</b> у списку дій <i>(на iPhone встановлення завжди йде через системне вікно «Поділитися» — навіть з Chrome, iOS обробляє його однаково)</i></div></li>
         <li><div class="txt">Натисніть <b>«Додати»</b> у верхньому правому куті</div></li>
       </ol>
     </div>
@@ -145,15 +154,6 @@ body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var
         <li><div class="txt">Натисніть меню <b>⋮</b> у правому верхньому куті</div></li>
         <li><div class="txt">Оберіть <b>«Додати на головний екран»</b> або <b>«Встановити застосунок»</b></div></li>
         <li><div class="txt">Підтвердіть — іконка з'явиться серед інших застосунків</div></li>
-      </ol>
-    </div>
-
-    <div class="install-panel" id="panel-desktop">
-      <ol class="steps">
-        <li><div class="txt">Відкрийте посилання вище у <b>Chrome</b> на комп'ютері <i>(Windows, Mac або Linux)</i></div></li>
-        <li><div class="txt">Знайдіть іконку встановлення <b>⊕</b> у правій частині адресного рядка <i>(або меню ⋮ → «Встановити застосунок»)</i></div></li>
-        <li><div class="txt">Натисніть <b>«Встановити»</b> у вікні, що з'явиться</div></li>
-        <li><div class="txt">Застосунок відкриється в окремому вікні та з'явиться серед інших програм на комп'ютері</div></li>
       </ol>
     </div>
   </div>
