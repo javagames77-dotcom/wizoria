@@ -400,9 +400,21 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
   <!-- ================= SCREEN: CLIENT REPORTS (роль client) ================= -->
   <section class="screen" id="screen-client-reports">
     <div class="topbar">
-      <button class="back" id="btn-shopper-reports-back"><i class="ti ti-chevron-left" aria-hidden="true"></i></button>
       <div class="ttl">Мої звіти</div>
-      <button class="avatar" id="btn-client-profile-open" style="cursor:pointer;border:none" title="Профіль">?</button>
+      <div class="shopper-nav">
+        <button class="shopper-nav-btn" id="btn-shopper-profile-open-2" title="Профіль">
+          <span class="shopper-nav-icon"><i class="ti ti-user-edit" aria-hidden="true"></i></span>
+          <span class="shopper-nav-label">Профіль</span>
+        </button>
+        <button class="shopper-nav-btn" id="btn-shopper-reports-back" title="Мої об'єкти">
+          <span class="shopper-nav-icon"><i class="ti ti-building-store" aria-hidden="true"></i></span>
+          <span class="shopper-nav-label">Об'єкти</span>
+        </button>
+        <button class="shopper-nav-btn danger" onclick="doLogout()" title="Вийти з акаунту">
+          <span class="shopper-nav-icon"><i class="ti ti-logout" aria-hidden="true"></i></span>
+          <span class="shopper-nav-label">Вийти</span>
+        </button>
+      </div>
     </div>
     <main>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
@@ -431,8 +443,21 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
   <!-- ================= SCREEN: CLIENT PROFILE (роль client) ================= -->
   <section class="screen" id="screen-client-profile">
     <div class="topbar">
-      <button class="back" id="btn-client-profile-back"><i class="ti ti-chevron-left" aria-hidden="true"></i> Назад</button>
       <div class="ttl">Мій профіль</div>
+      <div class="shopper-nav">
+        <button class="shopper-nav-btn" id="btn-client-profile-back" title="Мої об'єкти">
+          <span class="shopper-nav-icon"><i class="ti ti-building-store" aria-hidden="true"></i></span>
+          <span class="shopper-nav-label">Об'єкти</span>
+        </button>
+        <button class="shopper-nav-btn" id="btn-shopper-reports-open-2" title="Мої звіти">
+          <span class="shopper-nav-icon"><i class="ti ti-report" aria-hidden="true"></i></span>
+          <span class="shopper-nav-label">Звіти</span>
+        </button>
+        <button class="shopper-nav-btn danger" onclick="doLogout()" title="Вийти з акаунту">
+          <span class="shopper-nav-icon"><i class="ti ti-logout" aria-hidden="true"></i></span>
+          <span class="shopper-nav-label">Вийти</span>
+        </button>
+      </div>
     </div>
     <main>
       <label class="fm-label" for="cp-name">Ім'я та прізвище</label>
@@ -449,6 +474,6 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
 
 </div>
 
-<script src="app.js?v=18"></script>
+<script src="app.js?v=19"></script>
 </body>
 </html>
