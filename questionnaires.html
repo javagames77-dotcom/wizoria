@@ -432,9 +432,10 @@ document.getElementById('new-section-btn').addEventListener('click', () => {
     <div class="mini-form">
       <div class="mini-form-title">Нова анкета</div>
       <div class="form-row">
-        <div class="form-field"><label>Секція (для AI-аналізу)</label><select id="sf-key">${options}</select></div>
+        <div class="form-field"><label>Секція (для AI-аналізу)</label><input type="text" id="sf-key" list="sf-key-suggestions" placeholder="напр. online_purchase" pattern="[a-z][a-z0-9_]{1,29}" title="латиницею, малими літерами, 2-30 символів"><datalist id="sf-key-suggestions">${options}</datalist></div>
         <div class="form-field"><label>Назва анкети</label><input type="text" id="sf-title" placeholder="Каса — стандарт"></div>
       </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">Можна вибрати існуючу секцію зі списку або вписати нову (латиницею, напр. <code>online_purchase</code>)</div>
       <div class="mini-form-actions">
         <button class="btn-outline btn-small" id="sf-cancel">Скасувати</button>
         <button class="btn-primary btn-small" id="sf-add">Створити</button>
