@@ -413,6 +413,10 @@ async function openTaskDetail(taskId) {
   document.getElementById('edit-view').style.display = 'block';
   document.getElementById('edit-task-id').textContent = taskId;
   document.getElementById('edit-form-alert').className = 'alert err';
+  // objectsList/shoppersList раніше наповнювались лише всередині loadFormLookups(),
+  // яку викликала тільки кнопка "Нове завдання" -- при прямому переході в редагування
+  // існуючого завдання списки лишались порожніми, звідки і "object_id має бути числом".
+  if (objectsList.length === 0 || shoppersList.length === 0) await loadFormLookups();
   await reloadEditView();
 }
 
