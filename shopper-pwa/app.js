@@ -6,7 +6,7 @@ const API_BASE = 'https://primary-production-4b93e.up.railway.app/webhook';
 // VAPID public key (той самой пары, что сгенерирована для проекта) — публичный, безопасно
 // держать прямо в клиентском коде, приватный остаётся только в n8n
 const VAPID_PUBLIC_KEY = 'BNnz-jdGhB2nz3Meh4yN4A6-VageQqYiQFX_BLpSBjhWxFCrOQ4Sq491vMVVp8qbUTXNHoF4AnfW6L9dJCmSjgE';
-const APP_VERSION = 'v18'; // bump this on every real code change — visible on screen bottom-right,
+const APP_VERSION = 'v19'; // bump this on every real code change — visible on screen bottom-right,
 // so it's possible to confirm at a glance whether a new deploy actually reached the device,
 // instead of asking "did you upload it?" every time.
 document.addEventListener('DOMContentLoaded', () => {
@@ -1266,10 +1266,18 @@ const Client = {
   },
 
   async loadProfile() {
-    const u = State.user;
-    document.getElementById('cp-name').value = `${u.first_name || ''} ${u.last_name || ''}`.trim();
-    document.getElementById('cp-phone').value = u.phone || '';
+    document.getElementById('cp-name').value = '';
+    document.getElementById('cp-phone').value = '';
     document.getElementById('cp-password').value = '';
+    try {
+      const { data } = await api('/ga/shopper/my-profile');
+      if (!data.success) return;
+      const u = data.user;
+      State.user = { ...State.user, ...u };
+      localStorage.setItem('ga_user', JSON.stringify(State.user));
+      document.getElementById('cp-name').value = `${u.first_name || ''} ${u.last_name || ''}`.trim();
+      document.getElementById('cp-phone').value = u.phone || '';
+    } catch (e) { /* лишаємо поля порожніми, форма все одно робоча */ }
   },
 
   async saveProfile() {
@@ -1301,7 +1309,15 @@ document.getElementById('btn-shopper-profile-open')?.addEventListener('click', (
   Router.show('client-profile');
   Client.loadProfile();
 });
+document.getElementById('btn-shopper-profile-open-2')?.addEventListener('click', () => {
+  Router.show('client-profile');
+  Client.loadProfile();
+});
 document.getElementById('btn-shopper-reports-open')?.addEventListener('click', () => {
+  Router.show('client-reports');
+  Client.loadReports();
+});
+document.getElementById('btn-shopper-reports-open-2')?.addEventListener('click', () => {
   Router.show('client-reports');
   Client.loadReports();
 });
