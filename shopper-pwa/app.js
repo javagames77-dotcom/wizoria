@@ -6,7 +6,7 @@ const API_BASE = 'https://primary-production-4b93e.up.railway.app/webhook';
 // VAPID public key (той самой пары, что сгенерирована для проекта) — публичный, безопасно
 // держать прямо в клиентском коде, приватный остаётся только в n8n
 const VAPID_PUBLIC_KEY = 'BNnz-jdGhB2nz3Meh4yN4A6-VageQqYiQFX_BLpSBjhWxFCrOQ4Sq491vMVVp8qbUTXNHoF4AnfW6L9dJCmSjgE';
-const APP_VERSION = 'v16'; // bump this on every real code change — visible on screen bottom-right,
+const APP_VERSION = 'v17'; // bump this on every real code change — visible on screen bottom-right,
 // so it's possible to confirm at a glance whether a new deploy actually reached the device,
 // instead of asking "did you upload it?" every time.
 document.addEventListener('DOMContentLoaded', () => {
