@@ -40,6 +40,8 @@ body{margin:0;font-family:'Inter',-apple-system,sans-serif;background:var(--bg);
 
 .empty-state{padding:24px;text-align:center;color:var(--muted);font-size:12px}
 .loading{padding:20px;text-align:center;color:var(--muted);font-size:12px}
+td[tabindex]{cursor:cell}
+td[tabindex]:focus{box-shadow:inset 0 0 0 2px var(--accent);border-radius:3px}
 </style>
 </head>
 <body>
@@ -110,6 +112,10 @@ body{margin:0;font-family:'Inter',-apple-system,sans-serif;background:var(--bg);
             <div style="font-size:11px;color:var(--muted);margin-top:2px" id="reviewsDate">—</div>
           </div>
           <div style="display:flex;gap:8px;align-items:center">
+            <div style="position:relative;width:200px">
+              <i class="ti ti-search" style="position:absolute;left:9px;top:50%;transform:translateY(-50%);font-size:13px;color:var(--muted2)"></i>
+              <input type="text" id="reviewsSearch" placeholder="Пошук: покупець, об'єкт" style="width:100%;height:28px;border:0.5px solid var(--border);border-radius:5px;background:var(--bg2);padding:0 8px 0 28px;font-size:11px;font-family:inherit;color:var(--text);outline:none">
+            </div>
             <div style="display:flex;gap:10px;font-size:11px;color:var(--muted);align-items:center">
               <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:var(--danger);display:inline-block;flex-shrink:0"></span>Розбіжність AI</span>
               <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:var(--warn-text);display:inline-block;flex-shrink:0"></span>Мінуси</span>
@@ -275,6 +281,28 @@ function truncate(s, n){ s = String(s||''); return s.length>n ? s.slice(0,n-1)+'
 // ============================================================
 let allSubmissions = [];
 let activeFilter = '';
+let reviewsSearchTerm = '';
+
+document.getElementById('reviewsSearch').addEventListener('input', (e) => {
+  reviewsSearchTerm = e.target.value.trim().toLowerCase();
+  renderReviews();
+});
+
+document.getElementById('reviewsTableWrap').addEventListener('keydown', (e) => {
+  if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+  const cell = e.target.closest('td[tabindex]');
+  if (!cell) return;
+  const row = cell.parentElement;
+  const tbody = row.parentElement;
+  const cellIndex = cell.cellIndex;
+  const rowIndex = Array.prototype.indexOf.call(tbody.rows, row);
+  let target = null;
+  if (e.key === 'ArrowDown') target = tbody.rows[rowIndex + 1]?.cells[cellIndex];
+  if (e.key === 'ArrowUp') target = tbody.rows[rowIndex - 1]?.cells[cellIndex];
+  if (e.key === 'ArrowRight') target = row.cells[cellIndex + 1];
+  if (e.key === 'ArrowLeft') target = row.cells[cellIndex - 1];
+  if (target && target.hasAttribute('tabindex')) { e.preventDefault(); target.focus(); }
+});
 
 document.addEventListener('click', function(e){
   if(!e.target.closest('#filterPopup') && !e.target.closest('[onclick="toggleFilterPopup()"]')){
@@ -359,11 +387,11 @@ function reviewRow(s){
   }
 
   return `<tr style="border-bottom:0.5px solid var(--border);${rowBg}">
-    <td style="padding:10px 10px"><div style="font-weight:500;color:var(--black)">${escapeHtml(s.object_name)}</div><div style="font-size:10px;color:var(--muted)">${escapeHtml(s.section_title||'—')}</div></td>
-    <td style="padding:10px 10px;color:var(--muted)">${escapeHtml(s.shopper_name)}</td>
-    <td style="padding:10px 10px;color:var(--muted)">${time}</td>
-    <td style="padding:10px 10px;text-align:center;font-weight:500;color:${scoreColor}">${scoreTxt}</td>
-    <td style="padding:10px 10px">${flagsCell}</td>
+    <td tabindex="0" style="padding:10px 10px;outline:none"><div style="font-weight:500;color:var(--black)">${escapeHtml(s.object_name)}</div><div style="font-size:10px;color:var(--muted)">${escapeHtml(s.section_title||'—')}</div></td>
+    <td tabindex="0" style="padding:10px 10px;color:var(--muted);outline:none">${escapeHtml(s.shopper_name)}</td>
+    <td tabindex="0" style="padding:10px 10px;color:var(--muted);outline:none">${time}</td>
+    <td tabindex="0" style="padding:10px 10px;text-align:center;font-weight:500;color:${scoreColor};outline:none">${scoreTxt}</td>
+    <td tabindex="0" style="padding:10px 10px;outline:none">${flagsCell}</td>
     <td style="padding:10px 10px;text-align:right">${actionCell}</td>
   </tr>`;
 }
@@ -371,6 +399,10 @@ function reviewRow(s){
 function renderReviews(){
   let rows = allSubmissions;
   if(activeFilter) rows = rows.filter(s => (s.decision||'pending') === activeFilter);
+  if(reviewsSearchTerm) rows = rows.filter(s =>
+    (s.shopper_name||'').toLowerCase().includes(reviewsSearchTerm) ||
+    (s.object_name||'').toLowerCase().includes(reviewsSearchTerm)
+  );
 
   const needAttention = allSubmissions.filter(s=>s.color==='red'||s.color==='yellow').length;
   const autoApproved = allSubmissions.filter(s=>s.color==='green').length;
