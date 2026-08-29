@@ -129,9 +129,9 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 
           <div class="fm-row">
             <div class="fm-half">
-              <label class="fm-label" for="city">Місто *</label>
-              <input class="fm-input" type="text" id="city">
-              <div class="field-err" id="err-city"></div>
+              <label class="fm-label" for="object_id">Кінотеатр *</label>
+              <select class="fm-select" id="object_id"><option value="">Завантаження…</option></select>
+              <div class="field-err" id="err-object_id"></div>
             </div>
             <div class="fm-half">
               <label class="fm-label" for="age">Вік *</label>
@@ -230,7 +230,7 @@ function validateStep1() {
   if (!v('first_name') || v('first_name').length > 100) { setFieldError('first_name', '1–100 символів'); ok = false; } else setFieldError('first_name', null);
   if (!v('last_name') || v('last_name').length > 100) { setFieldError('last_name', '1–100 символів'); ok = false; } else setFieldError('last_name', null);
   if (!/^\+380\d{9}$/.test(v('phone'))) { setFieldError('phone', 'Формат +380XXXXXXXXX'); ok = false; } else setFieldError('phone', null);
-  if (!v('city') || v('city').length > 100) { setFieldError('city', '1–100 символів'); ok = false; } else setFieldError('city', null);
+  if (!v('object_id')) { setFieldError('object_id', 'Оберіть кінотеатр'); ok = false; } else setFieldError('object_id', null);
   const age = Number(v('age'));
   if (!Number.isInteger(age) || age < 18 || age > 80) { setFieldError('age', '18–80'); ok = false; } else setFieldError('age', null);
   if (!v('gender')) { setFieldError('gender', 'Оберіть стать'); ok = false; } else setFieldError('gender', null);
@@ -285,7 +285,7 @@ document.getElementById('reg-form').addEventListener('submit', async (e) => {
   fd.append('first_name', document.getElementById('first_name').value.trim());
   fd.append('last_name', document.getElementById('last_name').value.trim());
   fd.append('phone', document.getElementById('phone').value.trim());
-  fd.append('city', document.getElementById('city').value.trim());
+  fd.append('object_id', document.getElementById('object_id').value);
   fd.append('age', document.getElementById('age').value);
   fd.append('gender', document.getElementById('gender').value);
   fd.append('login', document.getElementById('login').value.trim());
@@ -309,6 +309,25 @@ document.getElementById('reg-form').addEventListener('submit', async (e) => {
     btn.textContent = 'Зареєструватись';
   }
 });
+
+async function loadObjectsForRegistration() {
+  const select = document.getElementById('object_id');
+  try {
+    const res = await fetch(`${API_BASE}/ga/public/objects`);
+    const data = await res.json();
+    const objects = data.objects || [];
+    select.innerHTML = '<option value="">Оберіть кінотеатр…</option>';
+    objects.forEach(o => {
+      const opt = document.createElement('option');
+      opt.value = o.id;
+      opt.textContent = o.city ? `${o.name} (${o.city})` : o.name;
+      select.appendChild(opt);
+    });
+  } catch (err) {
+    select.innerHTML = '<option value="">Не вдалося завантажити список</option>';
+  }
+}
+loadObjectsForRegistration();
 </script>
 </body>
 </html>
