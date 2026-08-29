@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="uk">
 <head>
@@ -153,7 +154,10 @@ tr:last-child td{border-bottom:none}
           <div class="form-row">
             <div class="form-field">
               <label>Клієнт (мережа)</label>
-              <select id="f-client"></select>
+              <div style="display:flex;gap:6px">
+                <select id="f-client" style="flex:1"></select>
+                <button type="button" class="btn-outline" id="new-client-btn" style="height:32px;padding:0 10px;white-space:nowrap"><i class="ti ti-plus"></i></button>
+              </div>
             </div>
             <div class="form-field">
               <label>Назва об'єкту</label>
@@ -227,7 +231,7 @@ tr:last-child td{border-bottom:none}
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-function showModal({ icon = 'ℹ️', title, message, buttons }) {
+function showModal({ icon = 'ℹ️', title, message, buttons, input }) {
   return new Promise((resolve) => {
     const overlay = document.getElementById('modal-overlay');
     document.getElementById('modal-icon').textContent = icon;
@@ -236,6 +240,22 @@ function showModal({ icon = 'ℹ️', title, message, buttons }) {
     const actions = document.getElementById('modal-actions');
     actions.innerHTML = '';
 
+    let inputEl = document.getElementById('modal-input');
+    if (input) {
+      if (!inputEl) {
+        inputEl = document.createElement('input');
+        inputEl.id = 'modal-input';
+        inputEl.type = 'text';
+        inputEl.style.cssText = 'width:100%;height:34px;border:1px solid var(--border);border-radius:7px;background:var(--bg2);padding:0 10px;font-size:13px;font-family:inherit;color:var(--text);outline:none;margin-bottom:14px;display:block';
+        document.getElementById('modal-message').insertAdjacentElement('afterend', inputEl);
+      }
+      inputEl.style.display = 'block';
+      inputEl.value = '';
+      inputEl.placeholder = input.placeholder || '';
+    } else if (inputEl) {
+      inputEl.style.display = 'none';
+    }
+
     buttons.forEach(b => {
       const btn = document.createElement('button');
       btn.textContent = b.label;
@@ -243,12 +263,24 @@ function showModal({ icon = 'ℹ️', title, message, buttons }) {
       if (b.variant === 'danger') btn.style.background = 'var(--danger)';
       btn.addEventListener('click', () => {
         overlay.style.display = 'none';
-        resolve(b.value);
+        const val = (input && b.value === true) ? inputEl.value.trim() : b.value;
+        resolve(val);
       });
       actions.appendChild(btn);
     });
 
     overlay.style.display = 'flex';
+    if (input) setTimeout(() => inputEl && inputEl.focus(), 50);
+  });
+}
+
+function showPromptDialog(message, title = 'Введіть значення', placeholder = '') {
+  return showModal({
+    icon: '✏️', title, message, input: { placeholder },
+    buttons: [
+      { label: 'Скасувати', value: false, variant: 'outline' },
+      { label: 'Створити', value: true, variant: 'primary' }
+    ]
   });
 }
 
@@ -429,19 +461,35 @@ function clearFormError() {
 }
 
 async function loadClients() {
-  // Немає окремого GET-списку клієнтів у поточному API — клієнт один (Wizoria Cinema, id=1),
-  // тому поки що жорстко задаю його як єдиний варіант. Коли з'явиться другий клієнт,
-  // сюди знадобиться реальний GET /ga/admin/clients (він є) для списку.
   const res = await fetch(`${API_BASE}/ga/admin/clients`, { headers: authHeaders() });
   const data = await res.json();
   const select = document.getElementById('f-client');
+  const prevValue = select.value;
   select.innerHTML = '';
   (data.clients || []).forEach(c => {
     const opt = document.createElement('option');
     opt.value = c.id; opt.textContent = c.name;
     select.appendChild(opt);
   });
+  if (prevValue) select.value = prevValue;
 }
+
+document.getElementById('new-client-btn').addEventListener('click', async () => {
+  const name = await showPromptDialog("Назва мережі кінотеатрів", 'Нова мережа', 'напр. CinemaCity');
+  if (!name) return;
+  try {
+    const res = await fetch(`${API_BASE}/ga/admin/clients`, {
+      method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    });
+    const data = await res.json();
+    if (!data.success) { await showAlertDialog(data.error || 'Помилка створення мережі', 'Помилка'); return; }
+    await loadClients();
+    document.getElementById('f-client').value = data.client.id;
+  } catch (e) {
+    await showAlertDialog("Немає з'єднання з сервером", 'Помилка');
+  }
+});
 
 async function loadSupervisors() {
   const res = await fetch(`${API_BASE}/ga/admin/users?role=supervisor`, { headers: authHeaders() });
