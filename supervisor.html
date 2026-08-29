@@ -80,7 +80,7 @@ td[tabindex]:focus{box-shadow:inset 0 0 0 2px var(--accent);border-radius:3px}
       </div>
       <div style="flex:1;padding:16px;min-width:0">
         <div style="font-size:14px;font-weight:500;color:var(--black);margin-bottom:2px">Завдання</div>
-        <div style="font-size:11px;color:var(--muted);margin-bottom:14px">Тільки перегляд — задання створює Admin</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:14px">Усі поставлені завдання незалежно від статусу. Тільки перегляд — завдання створює Admin. Ті, що вже здані й потребують вашої оцінки — у розділі «Перевірки»</div>
         <div id="tasksWrap"><div class="loading">Завантаження…</div></div>
       </div>
     </div>
@@ -109,6 +109,7 @@ td[tabindex]:focus{box-shadow:inset 0 0 0 2px var(--accent);border-radius:3px}
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
           <div>
             <div style="font-size:14px;font-weight:500;color:var(--black)">Перевірки</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">Здані завдання, що потребують вашої оцінки (AI-аналіз + рішення)</div>
             <div style="font-size:11px;color:var(--muted);margin-top:2px" id="reviewsDate">—</div>
           </div>
           <div style="display:flex;gap:8px;align-items:center">
