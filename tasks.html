@@ -356,7 +356,14 @@ function showAlertDialog(message, title = 'Повідомлення') {
   return showModal({ icon: 'ℹ️', title, message, buttons: [{ label: 'Гаразд', value: true }] });
 }
 
-const SECTION_NAMES = { kasa: 'Каса', bar: 'Бар', vhid: 'Вхід', vyhid: 'Вихід', zal: 'Зал', tualet: 'Туалет' };
+// Порядок секцій — за реальним маршрутом відвідувача кінотеатру (п.13 правок):
+// Вхід → Каса → Бар → Зал → Туалет → Вихід. Раніше порядку не було взагалі (як додали, так і йшло).
+const SECTION_NAMES = { vhid: 'Вхід', kasa: 'Каса', bar: 'Бар', zal: 'Зал', tualet: 'Туалет', vyhid: 'Вихід' };
+const SECTION_ORDER = Object.keys(SECTION_NAMES);
+function sectionRank(key) {
+  const i = SECTION_ORDER.indexOf(key);
+  return i === -1 ? SECTION_ORDER.length : i;
+}
 let objectsList = [];
 let shoppersList = [];
 let supervisorMap = {};
@@ -861,17 +868,19 @@ document.getElementById('cancel-task-btn').addEventListener('click', showListVie
 function renderChips() {
   const wrap = document.getElementById('req-chips');
   wrap.innerHTML = '';
-  photoReqs.forEach((r, i) => {
+  const sortedPhotos = photoReqs.map((r, i) => ({ r, i })).sort((a, b) => sectionRank(a.r.section_key) - sectionRank(b.r.section_key));
+  const sortedAudios = audioReqs.map((r, i) => ({ r, i })).sort((a, b) => sectionRank(a.r.section_key) - sectionRank(b.r.section_key));
+  sortedPhotos.forEach(({ r, i }) => {
     wrap.insertAdjacentHTML('beforeend', `
       <div class="req-chip"><i class="ti ti-camera type-icon" style="color:var(--accent)"></i>
         <span class="chip-title">${r.title}</span><span class="chip-meta">${r.required_count} фото · ${SECTION_NAMES[r.section_key] || r.section_key}</span>
         <span class="chip-remove" data-kind="photo" data-idx="${i}"><i class="ti ti-x"></i></span></div>
     `);
   });
-  audioReqs.forEach((r, i) => {
+  sortedAudios.forEach(({ r, i }) => {
     wrap.insertAdjacentHTML('beforeend', `
       <div class="req-chip"><i class="ti ti-microphone type-icon" style="color:var(--warn-text)"></i>
-        <span class="chip-title">${r.title}</span><span class="chip-meta">мін. ${r.min_duration_sec} сек</span>
+        <span class="chip-title">${r.title}</span><span class="chip-meta">мін. ${r.min_duration_sec} сек · ${SECTION_NAMES[r.section_key] || r.section_key}</span>
         <span class="chip-remove" data-kind="audio" data-idx="${i}"><i class="ti ti-x"></i></span></div>
     `);
   });
