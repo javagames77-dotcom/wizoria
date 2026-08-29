@@ -884,7 +884,8 @@ function renderChips() {
         <span class="chip-remove" data-kind="audio" data-idx="${i}"><i class="ti ti-x"></i></span></div>
     `);
   });
-  questionnaireReqs.forEach((r, i) => {
+  const sortedQuests = questionnaireReqs.map((r, i) => ({ r, i })).sort((a, b) => sectionRank(a.r.section_key) - sectionRank(b.r.section_key));
+  sortedQuests.forEach(({ r, i }) => {
     wrap.insertAdjacentHTML('beforeend', `
       <div class="req-chip"><i class="ti ti-clipboard-list type-icon" style="color:var(--success)"></i>
         <span class="chip-title">${r.title}</span><span class="chip-meta">${r.criteria_count} питань</span>
@@ -990,7 +991,7 @@ document.getElementById('add-questionnaire-btn').addEventListener('click', async
     const q = list.find(x => x.id === qId);
     const critRes = await fetch(`${API_BASE}/ga/admin/criteria?questionnaire_id=${qId}`, { headers: authHeaders() });
     const critData = await critRes.json();
-    questionnaireReqs.push({ id: qId, title: q.title, criteria_count: (critData.criteria || []).length });
+    questionnaireReqs.push({ id: qId, title: q.title, criteria_count: (critData.criteria || []).length, section_key: q.section_key });
     closeMiniForm(); renderChips();
   });
 });
