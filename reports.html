@@ -132,6 +132,16 @@ tr:last-child td{border-bottom:none}
   </div>
 
   <div class="main">
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+      <select id="client-filter" style="height:32px;border:1px solid var(--border);border-radius:7px;background:var(--bg2);padding:0 10px;font-size:12px;font-family:inherit;color:var(--text)">
+        <option value="">Усі мережі</option>
+      </select>
+      <input type="date" id="date-from" style="height:32px;border:1px solid var(--border);border-radius:7px;background:var(--bg2);padding:0 10px;font-size:12px;font-family:inherit;color:var(--text)">
+      <span style="font-size:12px;color:var(--muted)">—</span>
+      <input type="date" id="date-to" style="height:32px;border:1px solid var(--border);border-radius:7px;background:var(--bg2);padding:0 10px;font-size:12px;font-family:inherit;color:var(--text)">
+      <span id="date-clear" style="font-size:11px;color:var(--accent);cursor:pointer;text-decoration:underline">Скинути дати</span>
+    </div>
+
     <div class="obj-tabs" id="obj-tabs"></div>
 
     <div id="report-body">
@@ -229,22 +239,55 @@ async function loadObjectsTabs() {
     return;
   }
 
+  const clientSelect = document.getElementById('client-filter');
+  const clients = [...new Map(objectsList.filter(o => o.client_name).map(o => [o.client_name, o.client_name])).values()];
+  clientSelect.innerHTML = '<option value="">Усі мережі</option>' + clients.map(c => `<option value="${c}">${c}</option>`).join('');
+
+  renderObjTabs();
+}
+
+function renderObjTabs() {
+  const clientFilter = document.getElementById('client-filter').value;
+  const filtered = clientFilter ? objectsList.filter(o => o.client_name === clientFilter) : objectsList;
+
   const wrap = document.getElementById('obj-tabs');
   wrap.innerHTML = '';
-  objectsList.forEach(o => {
+  if (filtered.length === 0) {
+    document.getElementById('report-body').style.display = 'none';
+    document.getElementById('no-objects-empty').style.display = 'block';
+    return;
+  }
+  document.getElementById('report-body').style.display = 'block';
+  document.getElementById('no-objects-empty').style.display = 'none';
+
+  filtered.forEach(o => {
     const el = document.createElement('div');
     el.className = 'obj-tab';
+    el.dataset.objectId = o.id;
     el.innerHTML = `<i class="ti ti-building"></i> ${o.name}`;
     el.addEventListener('click', () => selectObject(o.id));
     wrap.appendChild(el);
   });
 
-  await selectObject(objectsList[0].id);
+  if (!filtered.some(o => o.id === activeObjectId)) {
+    selectObject(filtered[0].id);
+  } else {
+    renderTabsActive();
+  }
 }
 
+document.getElementById('client-filter').addEventListener('change', renderObjTabs);
+document.getElementById('date-from').addEventListener('change', () => selectObject(activeObjectId));
+document.getElementById('date-to').addEventListener('change', () => selectObject(activeObjectId));
+document.getElementById('date-clear').addEventListener('click', () => {
+  document.getElementById('date-from').value = '';
+  document.getElementById('date-to').value = '';
+  selectObject(activeObjectId);
+});
+
 function renderTabsActive() {
-  document.querySelectorAll('.obj-tab').forEach((el, idx) => {
-    el.classList.toggle('active', objectsList[idx].id === activeObjectId);
+  document.querySelectorAll('.obj-tab').forEach((el) => {
+    el.classList.toggle('active', Number(el.dataset.objectId) === activeObjectId);
   });
 }
 
@@ -252,7 +295,12 @@ async function selectObject(objectId) {
   activeObjectId = objectId;
   renderTabsActive();
 
-  const res = await fetch(`${API_BASE}/ga/admin/reports/object?object_id=${objectId}`, { headers: authHeaders() });
+  const dateFrom = document.getElementById('date-from').value;
+  const dateTo = document.getElementById('date-to').value;
+  const qs = new URLSearchParams({ object_id: objectId });
+  if (dateFrom) qs.set('date_from', dateFrom);
+  if (dateTo) qs.set('date_to', dateTo);
+  const res = await fetch(`${API_BASE}/ga/admin/reports/object?${qs.toString()}`, { headers: authHeaders() });
   const data = await res.json();
   if (!data.success || !data.object) return;
 
