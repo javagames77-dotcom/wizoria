@@ -62,6 +62,13 @@ body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var
 table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}
 th{text-align:left;padding:8px;font-weight:500;font-size:10px;color:var(--muted2);border-bottom:1px solid var(--border)}
 td{padding:9px 8px;border-bottom:1px solid var(--border);color:var(--muted)}
+td[tabindex]{cursor:cell;outline:none}
+td[tabindex]:focus{box-shadow:inset 0 0 0 2px var(--accent);border-radius:3px}
+.list-toolbar{display:flex;align-items:center;margin-bottom:12px}
+.search-wrap{position:relative;max-width:280px;width:100%}
+.search-wrap i{position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:14px;color:var(--muted2)}
+.search-input{width:100%;height:34px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);padding:0 10px 0 32px;font-size:12px;font-family:inherit;color:var(--text);outline:none}
+.search-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-light)}
 tr:last-child td{border-bottom:none}
 .avatar{width:28px;height:28px;border-radius:50%;background:var(--accent-light);display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;color:var(--accent);flex-shrink:0;overflow:hidden;cursor:pointer;background-size:cover;background-position:center}
 .avatar:hover{outline:2px solid var(--accent-border);outline-offset:1px}
@@ -213,16 +220,25 @@ tr:last-child td{border-bottom:none}
         </div>
       </div>
 
+      <div class="list-toolbar">
+        <div class="search-wrap">
+          <i class="ti ti-search"></i>
+          <input type="text" class="search-input" id="users-search" placeholder="Пошук: ім'я, телефон, email">
+        </div>
+      </div>
+
       <div class="card">
         <table>
           <thead>
             <tr>
-              <th style="width:20%">Ім'я</th>
-              <th style="width:22%">Email</th>
-              <th style="width:12%">Роль</th>
-              <th style="width:12%">Статус</th>
-              <th style="width:20%">Об'єкти</th>
-              <th style="width:14%"></th>
+              <th style="width:16%">Ім'я</th>
+              <th style="width:17%">Email</th>
+              <th style="width:11%">Телефон</th>
+              <th style="width:10%">Роль</th>
+              <th style="width:10%">Статус</th>
+              <th style="width:10%">Реєстрація</th>
+              <th style="width:15%">Об'єкти</th>
+              <th style="width:11%"></th>
             </tr>
           </thead>
           <tbody id="users-tbody"></tbody>
@@ -393,10 +409,14 @@ async function loadSupervisorAssignmentsAll() {
   });
 }
 
-async function loadUsers() {
+let usersSearchTimer = null;
+let currentUsersSearch = '';
+
+async function loadUsers(search) {
+  const s = search ? `&search=${encodeURIComponent(search)}` : '';
   const [supRes, shopRes] = await Promise.all([
-    fetch(`${API_BASE}/ga/admin/users?role=supervisor`, { headers: authHeaders() }),
-    fetch(`${API_BASE}/ga/admin/users?role=shopper`, { headers: authHeaders() })
+    fetch(`${API_BASE}/ga/admin/users?role=supervisor${s}`, { headers: authHeaders() }),
+    fetch(`${API_BASE}/ga/admin/users?role=shopper${s}`, { headers: authHeaders() })
   ]);
   const supData = await supRes.json();
   const shopData = await shopRes.json();
@@ -430,13 +450,17 @@ function statusBadgeHtml(u) {
 
 allUsers.forEach(u => {
     const objs = u.role === 'supervisor' ? (supervisorAssignments[u.id] || []).map(a => a.object_name).join(', ') : '—';
+    const regDate = u.created_at ? new Date(u.created_at).toLocaleDateString('uk-UA') : '—';
+    const phone = u.phone || '—';
     tbody.insertAdjacentHTML('beforeend', `
       <tr>
-        <td><div class="name-cell">${avatarHtml(u)}<span class="user-name">${u.first_name} ${u.last_name}</span></div></td>
-        <td>${u.email}</td>
-        <td><span class="role-badge ${u.role}">${u.role === 'supervisor' ? 'Supervisor' : 'Shopper'}</span></td>
-        <td>${statusBadgeHtml(u)}</td>
-        <td>${objs || '—'}</td>
+        <td tabindex="0"><div class="name-cell">${avatarHtml(u)}<span class="user-name">${u.first_name} ${u.last_name}</span></div></td>
+        <td tabindex="0">${u.email}</td>
+        <td tabindex="0">${phone}</td>
+        <td tabindex="0"><span class="role-badge ${u.role}">${u.role === 'supervisor' ? 'Supervisor' : 'Shopper'}</span></td>
+        <td tabindex="0">${statusBadgeHtml(u)}</td>
+        <td tabindex="0">${regDate}</td>
+        <td tabindex="0">${objs || '—'}</td>
         <td style="text-align:right"><span class="manage-btn" data-user-id="${u.id}"><i class="ti ti-settings"></i>Керувати</span></td>
       </tr>
     `);
@@ -446,7 +470,7 @@ allUsers.forEach(u => {
           <div class="name-cell">${avatarHtml(u)}<span class="user-name">${u.first_name} ${u.last_name}</span></div>
           <span class="role-badge ${u.role}">${u.role === 'supervisor' ? 'Supervisor' : 'Shopper'}</span>
         </div>
-        <div class="row-card-meta">${u.email}<br>${statusBadgeHtml(u)}<br>${objs || '—'}</div>
+        <div class="row-card-meta">${u.email} · ${phone}<br>${statusBadgeHtml(u)}<br>Реєстрація: ${regDate}<br>${objs || '—'}</div>
         <div style="margin-top:8px"><span class="manage-btn" data-user-id="${u.id}"><i class="ti ti-settings"></i>Керувати</span></div>
       </div>
     `);
@@ -460,6 +484,31 @@ allUsers.forEach(u => {
     el.addEventListener('click', () => openManage(Number(el.dataset.userId)));
   });
 }
+
+// Пошук: невеликий дебаунс, щоб не смикати бекенд на кожну натиснуту клавішу
+document.getElementById('users-search').addEventListener('input', (e) => {
+  clearTimeout(usersSearchTimer);
+  const value = e.target.value.trim();
+  currentUsersSearch = value;
+  usersSearchTimer = setTimeout(() => loadUsers(value), 300);
+});
+
+// Навігація по клітинках таблиці стрілками (вгору/вниз/вліво/вправо)
+document.getElementById('users-tbody').addEventListener('keydown', (e) => {
+  if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+  const cell = e.target.closest('td[tabindex]');
+  if (!cell) return;
+  const row = cell.parentElement;
+  const tbody = row.parentElement;
+  const cellIndex = cell.cellIndex;
+  const rowIndex = Array.prototype.indexOf.call(tbody.rows, row);
+  let target = null;
+  if (e.key === 'ArrowDown') target = tbody.rows[rowIndex + 1]?.cells[cellIndex];
+  if (e.key === 'ArrowUp') target = tbody.rows[rowIndex - 1]?.cells[cellIndex];
+  if (e.key === 'ArrowRight') target = row.cells[cellIndex + 1];
+  if (e.key === 'ArrowLeft') target = row.cells[cellIndex - 1];
+  if (target && target.hasAttribute('tabindex')) { e.preventDefault(); target.focus(); }
+});
 
 // --- Додавання користувача ---
 document.getElementById('add-user-btn').addEventListener('click', async () => {
@@ -507,7 +556,7 @@ document.getElementById('save-user-btn').addEventListener('click', async () => {
     document.getElementById('add-form').style.display = 'none';
     ['f-first-name','f-last-name','f-email','f-login','f-password'].forEach(id => document.getElementById(id).value = '');
     await loadSupervisorAssignmentsAll();
-    await loadUsers();
+    await loadUsers(currentUsersSearch);
   } catch (err) {
     alertEl.textContent = "Немає з'єднання з сервером";
     alertEl.className = 'alert err show';
@@ -556,7 +605,7 @@ async function saveShopperProfile() {
     Object.assign(u, data.user);
     okEl.textContent = 'Профіль збережено.'; okEl.className = 'alert ok show';
     document.getElementById('sd-password').value = '';
-    await loadUsers();
+    await loadUsers(currentUsersSearch);
   } catch (err) {
     errEl.textContent = "Немає з'єднання з сервером"; errEl.className = 'alert err show';
   } finally {
@@ -655,7 +704,7 @@ async function renderShopperDetail() {
 
   renderStatusOptions('sd-status-options', u.status || 'active', async (newStatus) => {
     const ok = await changeStatus(u.id, newStatus);
-    if (ok) { u.status = newStatus; await renderShopperDetail(); await loadUsers(); }
+    if (ok) { u.status = newStatus; await renderShopperDetail(); await loadUsers(currentUsersSearch); }
   });
 }
 
@@ -687,7 +736,7 @@ async function renderSupervisorDetail() {
 
   renderStatusOptions('pd-status-options', u.status || 'active', async (newStatus) => {
     const ok = await changeStatus(u.id, newStatus);
-    if (ok) { u.status = newStatus; await renderSupervisorDetail(); await loadUsers(); }
+    if (ok) { u.status = newStatus; await renderSupervisorDetail(); await loadUsers(currentUsersSearch); }
   });
 }
 
@@ -716,7 +765,7 @@ function renderSupervisorObjects() {
         if (!data.success) { await showAlertDialog(data.error || 'Помилка видалення', 'Помилка'); return; }
         await loadSupervisorAssignmentsAll();
         await renderSupervisorDetail();
-        await loadUsers();
+        await loadUsers(currentUsersSearch);
       } catch (err) {
         await showAlertDialog("Немає з'єднання з сервером", 'Помилка');
       }
@@ -736,7 +785,7 @@ document.getElementById('pd-add-object-btn').addEventListener('click', async () 
     if (!data.success) { await showAlertDialog(data.error || 'Помилка', 'Помилка'); return; }
     await loadSupervisorAssignmentsAll();
     await renderSupervisorDetail();
-    await loadUsers();
+    await loadUsers(currentUsersSearch);
   } catch (err) {
     await showAlertDialog("Немає з'єднання з сервером", 'Помилка');
   }
@@ -756,7 +805,7 @@ async function init() {
   try {
     await loadObjectsList();
     await loadSupervisorAssignmentsAll();
-    await loadUsers();
+    await loadUsers(currentUsersSearch);
     document.getElementById('page-body').style.display = 'flex';
   } catch (err) {
     console.error(err);
