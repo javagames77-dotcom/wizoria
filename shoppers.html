@@ -232,13 +232,14 @@ tr:last-child td{border-bottom:none}
           <thead>
             <tr>
               <th style="width:16%">Ім'я</th>
-              <th style="width:17%">Email</th>
-              <th style="width:11%">Телефон</th>
-              <th style="width:10%">Роль</th>
-              <th style="width:10%">Статус</th>
-              <th style="width:10%">Реєстрація</th>
-              <th style="width:15%">Об'єкти</th>
-              <th style="width:11%"></th>
+              <th style="width:15%">Email</th>
+              <th style="width:10%">Телефон</th>
+              <th style="width:9%">Роль</th>
+              <th style="width:9%">Статус</th>
+              <th style="width:9%">Реєстрація</th>
+              <th style="width:9%">Візит</th>
+              <th style="width:13%">Об'єкти</th>
+              <th style="width:10%"></th>
             </tr>
           </thead>
           <tbody id="users-tbody"></tbody>
@@ -451,6 +452,7 @@ function statusBadgeHtml(u) {
 allUsers.forEach(u => {
     const objs = u.role === 'supervisor' ? (supervisorAssignments[u.id] || []).map(a => a.object_name).join(', ') : '—';
     const regDate = u.created_at ? new Date(u.created_at).toLocaleDateString('uk-UA') : '—';
+    const visitDate = u.last_visit_at ? new Date(u.last_visit_at).toLocaleDateString('uk-UA') : '—';
     const phone = u.phone || '—';
     tbody.insertAdjacentHTML('beforeend', `
       <tr>
@@ -460,6 +462,7 @@ allUsers.forEach(u => {
         <td tabindex="0"><span class="role-badge ${u.role}">${u.role === 'supervisor' ? 'Supervisor' : 'Shopper'}</span></td>
         <td tabindex="0">${statusBadgeHtml(u)}</td>
         <td tabindex="0">${regDate}</td>
+        <td tabindex="0">${visitDate}</td>
         <td tabindex="0">${objs || '—'}</td>
         <td style="text-align:right"><span class="manage-btn" data-user-id="${u.id}"><i class="ti ti-settings"></i>Керувати</span></td>
       </tr>
@@ -470,7 +473,7 @@ allUsers.forEach(u => {
           <div class="name-cell">${avatarHtml(u)}<span class="user-name">${u.first_name} ${u.last_name}</span></div>
           <span class="role-badge ${u.role}">${u.role === 'supervisor' ? 'Supervisor' : 'Shopper'}</span>
         </div>
-        <div class="row-card-meta">${u.email} · ${phone}<br>${statusBadgeHtml(u)}<br>Реєстрація: ${regDate}<br>${objs || '—'}</div>
+        <div class="row-card-meta">${u.email} · ${phone}<br>${statusBadgeHtml(u)}<br>Реєстрація: ${regDate} · Візит: ${visitDate}<br>${objs || '—'}</div>
         <div style="margin-top:8px"><span class="manage-btn" data-user-id="${u.id}"><i class="ti ti-settings"></i>Керувати</span></div>
       </div>
     `);
