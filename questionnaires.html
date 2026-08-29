@@ -156,6 +156,8 @@ body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var
         <div class="main-sub">Перетягніть питання для зміни порядку</div>
       </div>
       <div class="head-actions">
+        <div class="btn-outline" id="edit-questionnaire-btn"><i class="ti ti-pencil"></i>Редагувати анкету</div>
+        <div class="btn-outline" id="copy-questionnaire-btn"><i class="ti ti-copy"></i>Копіювати</div>
         <div class="btn-outline"><i class="ti ti-eye"></i>Перегляд</div>
         <div class="btn-primary" id="save-order-btn"><i class="ti ti-device-floppy"></i>Зберегти порядок</div>
       </div>
@@ -335,8 +337,16 @@ function editCriterion(id) {
       <div class="mini-form-title">Редагування питання</div>
       <div class="form-field" style="margin-bottom:9px"><label>Текст питання</label><input type="text" id="ef-text" value="${c.question_text.replace(/"/g, '&quot;')}"></div>
       <div class="form-row">
+        <div class="form-field"><label>Тип відповіді</label>
+          <select id="ef-type">
+            <option value="yes_no" ${c.answer_type === 'yes_no' ? 'selected' : ''}>Так / Ні</option>
+            <option value="scale_1_5" ${c.answer_type === 'scale_1_5' ? 'selected' : ''}>Шкала 1–5</option>
+            <option value="text" ${c.answer_type === 'text' ? 'selected' : ''}>Текст</option>
+          </select>
+        </div>
         <div class="form-field"><label>Вага (0–100)</label><input type="number" id="ef-weight" value="${c.weight}" min="0" max="100"></div>
       </div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:9px">Зміна типу заблокована, якщо на це питання вже є відповіді покупців або AI-результати.</div>
       <div class="chk-row"><input type="checkbox" id="ef-critical" ${c.is_critical ? 'checked' : ''}><label for="ef-critical">Обов'язкове (критичний критерій)</label></div>
       <div class="mini-form-actions">
         <button class="btn-outline btn-small" id="ef-cancel">Скасувати</button>
@@ -357,7 +367,8 @@ function editCriterion(id) {
           criterion_id: id,
           question_text: text,
           weight: Number(document.getElementById('ef-weight').value) || c.weight,
-          is_critical: document.getElementById('ef-critical').checked
+          is_critical: document.getElementById('ef-critical').checked,
+          answer_type: document.getElementById('ef-type').value
         })
       });
       const data = await res.json();
@@ -402,8 +413,108 @@ document.getElementById('save-order-btn').addEventListener('click', async () => 
 });
 
 async function deleteCriterion(id) {
-  await showAlertDialog('Видалення окремого критерію поки не підтримується бекендом (є лише створення, список і reorder) — це видно чесно, а не приховано.', "Обмеження бекенду");
+  const c = criteria.find(x => x.id === id);
+  if (!c) return;
+  if (!confirm(`Видалити питання «${c.question_text}»? Цю дію не можна скасувати.`)) return;
+  try {
+    const res = await fetch(`${API_BASE}/ga/admin/criteria/delete`, {
+      method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ criterion_id: id })
+    });
+    const data = await res.json();
+    if (!data.success) { await showAlertDialog(data.error || 'Помилка', data.blocked ? "Не можна видалити" : 'Помилка'); return; }
+    criteria = criteria.filter(x => x.id !== id);
+    renderCriteria();
+  } catch (err) {
+    await showAlertDialog("Немає з'єднання з сервером", 'Помилка');
+  }
 }
+
+document.getElementById('edit-questionnaire-btn').addEventListener('click', () => {
+  const q = questionnaires.find(x => x.id === activeQuestionnaireId);
+  if (!q) return;
+  document.getElementById('q-mini-form-slot').innerHTML = `
+    <div class="mini-form">
+      <div class="mini-form-title">Редагування анкети</div>
+      <div class="form-row">
+        <div class="form-field"><label>Назва анкети</label><input type="text" id="eq-title" value="${q.title.replace(/"/g, '&quot;')}"></div>
+        <div class="form-field"><label>Секція (транслітерація для AI)</label><input type="text" id="eq-section" value="${q.section_key}" pattern="[a-z][a-z0-9_]{1,29}"></div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:9px">Зміна секції не ламає нічого напряму, але аудіо/фото, записані під старою назвою зони, більше не будуть автоматично зіставлятися з новою.</div>
+      <div class="mini-form-actions">
+        <button class="btn-outline btn-small" id="eq-cancel">Скасувати</button>
+        <button class="btn-primary btn-small" id="eq-save">Зберегти</button>
+      </div>
+    </div>
+  `;
+  document.getElementById('eq-cancel').addEventListener('click', () => { document.getElementById('q-mini-form-slot').innerHTML = ''; });
+  document.getElementById('eq-save').addEventListener('click', async () => {
+    const title = document.getElementById('eq-title').value.trim();
+    const sectionKey = document.getElementById('eq-section').value.trim();
+    if (!title || !sectionKey) return;
+    const btn = document.getElementById('eq-save');
+    btn.disabled = true; btn.textContent = 'Зберігаємо…';
+    try {
+      const res = await fetch(`${API_BASE}/ga/admin/questionnaires/update`, {
+        method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          questionnaire_id: activeQuestionnaireId,
+          title, section_key: sectionKey,
+          auto_approve_threshold: q.auto_approve_threshold,
+          min_audio_duration_sec: q.min_audio_duration_sec,
+          max_fill_time_sec: q.max_fill_time_sec
+        })
+      });
+      const data = await res.json();
+      if (!data.success) { await showAlertDialog(data.error || 'Помилка', 'Помилка'); return; }
+      await loadQuestionnaires();
+    } catch (err) {
+      await showAlertDialog("Немає з'єднання з сервером", 'Помилка');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Зберегти';
+    }
+  });
+});
+
+document.getElementById('copy-questionnaire-btn').addEventListener('click', () => {
+  const q = questionnaires.find(x => x.id === activeQuestionnaireId);
+  if (!q) return;
+  document.getElementById('q-mini-form-slot').innerHTML = `
+    <div class="mini-form">
+      <div class="mini-form-title">Копіювати анкету «${q.title}» (з усіма питаннями)</div>
+      <div class="form-row">
+        <div class="form-field"><label>Назва копії</label><input type="text" id="cq-title" value="${q.title} (копія)"></div>
+        <div class="form-field"><label>Секція копії</label><input type="text" id="cq-section" value="${q.section_key}_copy" pattern="[a-z][a-z0-9_]{1,29}"></div>
+      </div>
+      <div class="mini-form-actions">
+        <button class="btn-outline btn-small" id="cq-cancel">Скасувати</button>
+        <button class="btn-primary btn-small" id="cq-save">Копіювати</button>
+      </div>
+    </div>
+  `;
+  document.getElementById('cq-cancel').addEventListener('click', () => { document.getElementById('q-mini-form-slot').innerHTML = ''; });
+  document.getElementById('cq-save').addEventListener('click', async () => {
+    const title = document.getElementById('cq-title').value.trim();
+    const sectionKey = document.getElementById('cq-section').value.trim();
+    if (!title || !sectionKey) return;
+    const btn = document.getElementById('cq-save');
+    btn.disabled = true; btn.textContent = 'Копіюємо…';
+    try {
+      const res = await fetch(`${API_BASE}/ga/admin/questionnaires/copy`, {
+        method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ questionnaire_id: activeQuestionnaireId, title, section_key: sectionKey })
+      });
+      const data = await res.json();
+      if (!data.success) { await showAlertDialog(data.error || 'Помилка', 'Помилка'); return; }
+      activeQuestionnaireId = data.new_questionnaire_id;
+      await loadQuestionnaires();
+    } catch (err) {
+      await showAlertDialog("Немає з'єднання з сервером", 'Помилка');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Копіювати';
+    }
+  });
+});
 
 document.getElementById('add-question-btn').addEventListener('click', () => {
   const parentOptions = criteria.map((c, idx) => `<option value="${c.id}">${idx + 1}. ${c.question_text}</option>`).join('');
@@ -422,15 +533,16 @@ document.getElementById('add-question-btn').addEventListener('click', () => {
         <div class="form-field"><label>Вага (0–100)</label><input type="number" id="qf-weight" value="10" min="0" max="100"></div>
       </div>
       <div class="chk-row"><input type="checkbox" id="qf-critical"><label for="qf-critical">Обов'язкове (критичний критерій)</label></div>
-      ${criteria.length > 0 ? `
       <div class="form-row">
         <div class="form-field"><label>Умовна гілка: залежить від</label>
-          <select id="qf-parent"><option value="">— Немає (звичайне питання) —</option>${parentOptions}</select>
+          <select id="qf-parent" ${criteria.length === 0 ? 'disabled' : ''}>
+            <option value="">${criteria.length === 0 ? '— Немає інших питань у цій секції —' : '— Немає (звичайне питання) —'}</option>${parentOptions}
+          </select>
         </div>
         <div class="form-field"><label>Якщо відповідь =</label>
-          <select id="qf-condition"><option value="yes">Так</option><option value="no">Ні</option></select>
+          <select id="qf-condition" ${criteria.length === 0 ? 'disabled' : ''}><option value="yes">Так</option><option value="no">Ні</option></select>
         </div>
-      </div>` : ''}
+      </div>
       <div class="mini-form-actions">
         <button class="btn-outline btn-small" id="qf-cancel">Скасувати</button>
         <button class="btn-primary btn-small" id="qf-add">Додати питання</button>
