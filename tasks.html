@@ -360,8 +360,10 @@ function showAlertDialog(message, title = 'Повідомлення') {
 // Вхід → Каса → Бар → Зал → Туалет → Вихід. Раніше порядку не було взагалі (як додали, так і йшло).
 const SECTION_NAMES = { vhid: 'Вхід', kasa: 'Каса', bar: 'Бар', zal: 'Зал', tualet: 'Туалет', vyhid: 'Вихід' };
 const SECTION_ORDER = Object.keys(SECTION_NAMES);
+const SECTION_ALIASES = { cinema_hall: 'zal' }; // деякі анкети використовують довільний ключ замість стандартного 'zal'
 function sectionRank(key) {
-  const i = SECTION_ORDER.indexOf(key);
+  const normalized = SECTION_ALIASES[key] || key;
+  const i = SECTION_ORDER.indexOf(normalized);
   return i === -1 ? SECTION_ORDER.length : i;
 }
 let objectsList = [];
