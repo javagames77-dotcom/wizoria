@@ -243,6 +243,11 @@ async function loadObjectsTabs() {
   const clients = [...new Map(objectsList.filter(o => o.client_name).map(o => [o.client_name, o.client_name])).values()];
   clientSelect.innerHTML = '<option value="">Усі мережі</option>' + clients.map(c => `<option value="${c}">${c}</option>`).join('');
 
+  const urlObjectId = Number(new URLSearchParams(window.location.search).get('object_id'));
+  if (urlObjectId && objectsList.some(o => o.id === urlObjectId)) {
+    activeObjectId = urlObjectId;
+  }
+
   renderObjTabs();
 }
 
