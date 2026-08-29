@@ -192,14 +192,15 @@ td[tabindex]:focus{box-shadow:inset 0 0 0 2px var(--accent);border-radius:3px}
         <table>
           <thead>
             <tr>
-              <th style="width:17%">Об'єкт</th>
-              <th style="width:11%">Мережа</th>
-              <th style="width:13%">Покупець</th>
-              <th style="width:9%">Завдання</th>
-              <th style="width:11%">Призначено</th>
-              <th style="width:10%">Дедлайн</th>
-              <th style="width:15%">Статус</th>
-              <th style="width:14%"></th>
+              <th style="width:15%">Об'єкт</th>
+              <th style="width:10%">Мережа</th>
+              <th style="width:12%">Покупець</th>
+              <th style="width:8%">Завдання</th>
+              <th style="width:9%">Призначено</th>
+              <th style="width:9%">Дедлайн</th>
+              <th style="width:10%">Здано</th>
+              <th style="width:14%">Статус</th>
+              <th style="width:13%"></th>
             </tr>
           </thead>
           <tbody id="tasks-tbody"></tbody>
@@ -393,6 +394,7 @@ async function loadTasks(search) {
     const deadline = new Date(t.deadline);
     const deadlineStr = deadline.toLocaleDateString('uk-UA');
     const createdStr = t.created_at ? new Date(t.created_at).toLocaleDateString('uk-UA') : '—';
+    const submittedStr = t.submitted_at ? new Date(t.submitted_at).toLocaleString('uk-UA', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
     const clientName = t.client_name || '—';
     const statusText = statusLabels[t.status] || t.status;
     const openText = openLabel[t.status] || 'Відкрити';
@@ -405,6 +407,7 @@ async function loadTasks(search) {
         <td tabindex="0"><div class="req-icons"><i class="ti ti-camera" style="color:var(--accent)"></i><i class="ti ti-microphone" style="color:var(--warn-text)"></i><i class="ti ti-clipboard-list" style="color:var(--success)"></i></div></td>
         <td tabindex="0">${createdStr}</td>
         <td tabindex="0">${deadlineStr}</td>
+        <td tabindex="0">${submittedStr}</td>
         <td tabindex="0"><span class="status-badge ${t.status}">${statusText}</span></td>
         <td style="text-align:right">
           <span class="open-btn" data-task-id="${t.id}" data-action="open"><i class="ti ti-eye"></i>${openText}</span>
@@ -418,7 +421,7 @@ async function loadTasks(search) {
           <span class="obj-name">${t.object_name}</span>
           <span class="status-badge ${t.status}">${statusText}</span>
         </div>
-        <div class="row-card-meta">${t.shopper_first_name} ${t.shopper_last_name} · ${clientName}<br>Призначено: ${createdStr} · Дедлайн: ${deadlineStr}</div>
+        <div class="row-card-meta">${t.shopper_first_name} ${t.shopper_last_name} · ${clientName}<br>Призначено: ${createdStr} · Дедлайн: ${deadlineStr} · Здано: ${submittedStr}</div>
         <div style="margin-top:8px">
           <span class="open-btn" data-task-id="${t.id}" data-action="open"><i class="ti ti-eye"></i>${openText}</span>
           ${t.status === 'assigned' ? `<span class="open-btn" style="color:var(--danger);border-color:var(--danger-border);margin-left:5px" data-task-id="${t.id}" data-action="delete"><i class="ti ti-trash"></i>Видалити</span>` : ''}
