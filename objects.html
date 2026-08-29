@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="uk">
 <head>
@@ -669,7 +668,7 @@ document.getElementById('save-btn').addEventListener('click', async () => {
         method: 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          object_id: editingObjectId, name, address,
+          object_id: editingObjectId, client_id: Number(clientId), name, address,
           latitude: selectedLat, longitude: selectedLng, geo_radius_m: Number(radius),
           supervisor_id: supervisorId ? Number(supervisorId) : null
         })
