@@ -237,6 +237,7 @@ td[tabindex]:focus{box-shadow:inset 0 0 0 2px var(--accent);border-radius:3px}
           </div>
           <div class="form-field">
             <label>Покупець</label>
+            <input type="text" id="f-shopper-search" placeholder="Пошук: ім'я, телефон, № анкети" style="margin-bottom:5px">
             <select id="f-shopper"></select>
             <div class="field-err" id="err-shopper"></div>
           </div>
@@ -290,6 +291,7 @@ td[tabindex]:focus{box-shadow:inset 0 0 0 2px var(--accent);border-radius:3px}
           </div>
           <div class="form-field">
             <label>Покупець</label>
+            <input type="text" id="ef-shopper-search" placeholder="Пошук: ім'я, телефон, № анкети" style="margin-bottom:5px">
             <select id="ef-shopper"></select>
           </div>
         </div>
@@ -504,7 +506,8 @@ async function reloadEditView() {
   const objSel = document.getElementById('ef-object');
   const shopSel = document.getElementById('ef-shopper');
   objSel.innerHTML = objectsList.map(o => `<option value="${o.id}">${o.name}</option>`).join('');
-  shopSel.innerHTML = shoppersList.map(u => `<option value="${u.id}">${u.first_name} ${u.last_name}</option>`).join('');
+  shopSel.innerHTML = shoppersList.map(u => `<option value="${u.id}">${u.first_name} ${u.last_name} — ${u.phone || 'без телефону'} (#${u.id})</option>`).join('');
+  document.getElementById('ef-shopper-search').value = '';
   objSel.value = t.object_id;
   shopSel.value = t.shopper_id;
   document.getElementById('ef-deadline').value = new Date(t.deadline).toISOString().slice(0, 10);
@@ -512,6 +515,7 @@ async function reloadEditView() {
   const isEditable = t.status === 'assigned';
   objSel.disabled = !isEditable;
   shopSel.disabled = !isEditable;
+  document.getElementById('ef-shopper-search').disabled = !isEditable;
   document.getElementById('ef-note').textContent = isEditable
     ? ''
     : "Об'єкт і покупця можна змінити лише поки завдання в статусі «Призначено» — зараз доступний лише дедлайн.";
@@ -768,7 +772,7 @@ async function loadFormLookups() {
   shopSelect.innerHTML = '';
   shoppersList.forEach(u => {
     const opt = document.createElement('option');
-    opt.value = u.id; opt.textContent = `${u.first_name} ${u.last_name}`;
+    opt.value = u.id; opt.textContent = `${u.first_name} ${u.last_name} — ${u.phone || 'без телефону'} (#${u.id})`;
     shopSelect.appendChild(opt);
   });
 
@@ -784,10 +788,35 @@ function updateObjectLabel() {
   document.getElementById('f-supervisor-display').placeholder = supervisorMap[objId] ? '' : 'Не призначено';
 }
 
+function filterShopperSelect(searchInputId, selectId, list) {
+  const term = document.getElementById(searchInputId).value.trim().toLowerCase();
+  const select = document.getElementById(selectId);
+  const prevValue = select.value;
+  const filtered = !term ? list : list.filter(u =>
+    `${u.first_name} ${u.last_name}`.toLowerCase().includes(term) ||
+    (u.phone || '').toLowerCase().includes(term) ||
+    String(u.id) === term
+  );
+  select.innerHTML = filtered.map(u =>
+    `<option value="${u.id}">${u.first_name} ${u.last_name} — ${u.phone || 'без телефону'} (#${u.id})</option>`
+  ).join('');
+  if (filtered.some(u => String(u.id) === prevValue)) select.value = prevValue;
+}
+
+document.getElementById('f-shopper-search').addEventListener('input', () => {
+  filterShopperSelect('f-shopper-search', 'f-shopper', shoppersList);
+});
+
+document.getElementById('ef-shopper-search').addEventListener('input', () => {
+  filterShopperSelect('ef-shopper-search', 'ef-shopper', shoppersList);
+});
+
 function resetTaskForm() {
   photoReqs = []; audioReqs = []; questionnaireReqs = [];
   renderChips();
   document.getElementById('f-deadline').value = '';
+  document.getElementById('f-shopper-search').value = '';
+  filterShopperSelect('f-shopper-search', 'f-shopper', shoppersList);
   document.getElementById('mini-form-slot').innerHTML = '';
   document.getElementById('task-form-alert').className = 'alert err';
   ['err-object','err-shopper','err-deadline','err-requirements'].forEach(id => {
