@@ -605,7 +605,7 @@ document.getElementById('save-as-template-btn').addEventListener('click', async 
       method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name,
-        photo_requirements: photos.map(p => ({ title: p.title, description: p.description, required_count: p.required_count })),
+        photo_requirements: photos.map(p => ({ title: p.title, description: p.description, required_count: p.required_count, section_key: p.section_key })),
         audio_requirements: audios.map(a => ({ title: a.title, instruction: a.instruction, section_key: a.section_key, min_duration_sec: a.min_duration_sec })),
         questionnaire_ids: quests.map(q => q.questionnaire_id)
       })
@@ -646,13 +646,17 @@ document.getElementById('ef-save-btn').addEventListener('click', async () => {
 });
 
 document.getElementById('edit-add-photo-btn').addEventListener('click', () => {
+  const emfPhotoOptions = Object.entries(SECTION_NAMES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
   document.getElementById('edit-mini-form-slot').innerHTML = `
     <div class="mini-form">
       <div class="form-row">
         <div class="form-field"><label>Назва</label><input type="text" id="emf-photo-title" placeholder="Фото туалету"></div>
         <div class="form-field"><label>К-сть фото</label><input type="number" id="emf-photo-count" value="1" min="1"></div>
       </div>
-      <div class="form-field" style="margin-bottom:8px"><label>Опис (необов'язково)</label><input type="text" id="emf-photo-desc"></div>
+      <div class="form-row">
+        <div class="form-field"><label>Секція</label><select id="emf-photo-section">${emfPhotoOptions}</select></div>
+        <div class="form-field"><label>Опис (необов'язково)</label><input type="text" id="emf-photo-desc"></div>
+      </div>
       <div class="mini-form-actions">
         <button class="btn-outline btn-small" id="emf-photo-cancel">Скасувати</button>
         <button class="btn-primary btn-small" id="emf-photo-add">Додати</button>
@@ -662,7 +666,11 @@ document.getElementById('edit-add-photo-btn').addEventListener('click', () => {
   document.getElementById('emf-photo-add').addEventListener('click', () => {
     const title = document.getElementById('emf-photo-title').value.trim();
     if (!title) return;
-    addRequirementToTask('photo', { title, description: document.getElementById('emf-photo-desc').value.trim(), required_count: Number(document.getElementById('emf-photo-count').value) || 1 });
+    addRequirementToTask('photo', {
+      title, description: document.getElementById('emf-photo-desc').value.trim(),
+      required_count: Number(document.getElementById('emf-photo-count').value) || 1,
+      section_key: document.getElementById('emf-photo-section').value
+    });
   });
 });
 
@@ -847,7 +855,7 @@ function renderChips() {
   photoReqs.forEach((r, i) => {
     wrap.insertAdjacentHTML('beforeend', `
       <div class="req-chip"><i class="ti ti-camera type-icon" style="color:var(--accent)"></i>
-        <span class="chip-title">${r.title}</span><span class="chip-meta">${r.required_count} фото</span>
+        <span class="chip-title">${r.title}</span><span class="chip-meta">${r.required_count} фото · ${SECTION_NAMES[r.section_key] || r.section_key}</span>
         <span class="chip-remove" data-kind="photo" data-idx="${i}"><i class="ti ti-x"></i></span></div>
     `);
   });
@@ -879,13 +887,17 @@ function renderChips() {
 function closeMiniForm() { document.getElementById('mini-form-slot').innerHTML = ''; }
 
 document.getElementById('add-photo-btn').addEventListener('click', () => {
+  const mfPhotoOptions = Object.entries(SECTION_NAMES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
   document.getElementById('mini-form-slot').innerHTML = `
     <div class="mini-form">
       <div class="form-row">
         <div class="form-field"><label>Назва</label><input type="text" id="mf-photo-title" placeholder="Фото туалету"></div>
         <div class="form-field"><label>К-сть фото</label><input type="number" id="mf-photo-count" value="1" min="1"></div>
       </div>
-      <div class="form-field" style="margin-bottom:8px"><label>Опис (необов'язково)</label><input type="text" id="mf-photo-desc"></div>
+      <div class="form-row">
+        <div class="form-field"><label>Секція</label><select id="mf-photo-section">${mfPhotoOptions}</select></div>
+        <div class="form-field"><label>Опис (необов'язково)</label><input type="text" id="mf-photo-desc"></div>
+      </div>
       <div class="mini-form-actions">
         <button class="btn-outline btn-small" id="mf-photo-cancel">Скасувати</button>
         <button class="btn-primary btn-small" id="mf-photo-add">Додати</button>
@@ -895,7 +907,11 @@ document.getElementById('add-photo-btn').addEventListener('click', () => {
   document.getElementById('mf-photo-add').addEventListener('click', () => {
     const title = document.getElementById('mf-photo-title').value.trim();
     if (!title) return;
-    photoReqs.push({ title, description: document.getElementById('mf-photo-desc').value.trim(), required_count: Number(document.getElementById('mf-photo-count').value) || 1 });
+    photoReqs.push({
+      title, description: document.getElementById('mf-photo-desc').value.trim(),
+      required_count: Number(document.getElementById('mf-photo-count').value) || 1,
+      section_key: document.getElementById('mf-photo-section').value
+    });
     closeMiniForm(); renderChips();
   });
 });
