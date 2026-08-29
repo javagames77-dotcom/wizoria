@@ -390,6 +390,14 @@ async function loadTasks(search) {
   empty.style.display = 'none';
 
   const statusLabels = { assigned: 'Призначено', in_progress: 'В процесі', submitted: 'Очікує', approved: 'Здано', rejected: 'Відхилено', needs_revision: 'На доопрацюванні' };
+  const STATUS_HINTS = {
+    assigned: 'Завдання призначено покупцю, він ще не почав',
+    in_progress: 'Покупець почав виконувати завдання',
+    submitted: 'Здано покупцем, очікує на перевірку супервайзером',
+    approved: 'Перевірено і схвалено супервайзером',
+    rejected: 'Відхилено супервайзером',
+    needs_revision: 'Повернено покупцю на доопрацювання'
+  };
   const openLabel = { submitted: 'Переглянути', approved: 'Переглянути' };
 
   tasks.forEach(t => {
@@ -399,6 +407,7 @@ async function loadTasks(search) {
     const submittedStr = t.submitted_at ? new Date(t.submitted_at).toLocaleString('uk-UA', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
     const clientName = t.client_name || '—';
     const statusText = statusLabels[t.status] || t.status;
+    const statusHint = STATUS_HINTS[t.status] || '';
     const openText = openLabel[t.status] || 'Відкрити';
 
     tbody.insertAdjacentHTML('beforeend', `
@@ -410,7 +419,7 @@ async function loadTasks(search) {
         <td tabindex="0">${createdStr}</td>
         <td tabindex="0">${deadlineStr}</td>
         <td tabindex="0">${submittedStr}</td>
-        <td tabindex="0"><span class="status-badge ${t.status}">${statusText}</span></td>
+        <td tabindex="0"><span class="status-badge ${t.status}" title="${statusHint}">${statusText}</span></td>
         <td style="text-align:right">
           <span class="open-btn" data-task-id="${t.id}" data-action="open"><i class="ti ti-eye"></i>${openText}</span>
           ${t.status === 'assigned' ? `<span class="open-btn" style="color:var(--danger);border-color:var(--danger-border);margin-left:5px" data-task-id="${t.id}" data-action="delete"><i class="ti ti-trash"></i>Видалити</span>` : ''}
@@ -421,7 +430,7 @@ async function loadTasks(search) {
       <div class="row-card">
         <div class="row-card-top">
           <span class="obj-name">${t.object_name}</span>
-          <span class="status-badge ${t.status}">${statusText}</span>
+          <span class="status-badge ${t.status}" title="${statusHint}">${statusText}</span>
         </div>
         <div class="row-card-meta">${t.shopper_first_name} ${t.shopper_last_name} · ${clientName}<br>Призначено: ${createdStr} · Дедлайн: ${deadlineStr} · Здано: ${submittedStr}</div>
         <div style="margin-top:8px">
