@@ -155,7 +155,9 @@ tr:last-child td{border-bottom:none}
               <label>Клієнт (мережа)</label>
               <div style="display:flex;gap:6px">
                 <select id="f-client" style="flex:1"></select>
-                <button type="button" class="btn-outline" id="new-client-btn" style="height:32px;padding:0 10px;white-space:nowrap"><i class="ti ti-plus"></i></button>
+                <button type="button" class="btn-outline" id="new-client-btn" title="Нова мережа" style="height:32px;padding:0 10px;white-space:nowrap"><i class="ti ti-plus"></i></button>
+                <button type="button" class="btn-outline" id="rename-client-btn" title="Перейменувати мережу" style="height:32px;padding:0 10px;white-space:nowrap"><i class="ti ti-pencil"></i></button>
+                <button type="button" class="btn-outline" id="delete-client-btn" title="Видалити мережу" style="height:32px;padding:0 10px;white-space:nowrap;color:var(--danger);border-color:var(--danger-border)"><i class="ti ti-trash"></i></button>
               </div>
             </div>
             <div class="form-field">
@@ -249,7 +251,7 @@ function showModal({ icon = 'ℹ️', title, message, buttons, input }) {
         document.getElementById('modal-message').insertAdjacentElement('afterend', inputEl);
       }
       inputEl.style.display = 'block';
-      inputEl.value = '';
+      inputEl.value = input.value || '';
       inputEl.placeholder = input.placeholder || '';
     } else if (inputEl) {
       inputEl.style.display = 'none';
@@ -273,12 +275,12 @@ function showModal({ icon = 'ℹ️', title, message, buttons, input }) {
   });
 }
 
-function showPromptDialog(message, title = 'Введіть значення', placeholder = '') {
+function showPromptDialog(message, title = 'Введіть значення', placeholder = '', value = '', confirmLabel = 'Створити') {
   return showModal({
-    icon: '✏️', title, message, input: { placeholder },
+    icon: '✏️', title, message, input: { placeholder, value },
     buttons: [
       { label: 'Скасувати', value: false, variant: 'outline' },
-      { label: 'Створити', value: true, variant: 'primary' }
+      { label: confirmLabel, value: true, variant: 'primary' }
     ]
   });
 }
@@ -485,6 +487,47 @@ document.getElementById('new-client-btn').addEventListener('click', async () => 
     if (!data.success) { await showAlertDialog(data.error || 'Помилка створення мережі', 'Помилка'); return; }
     await loadClients();
     document.getElementById('f-client').value = data.client.id;
+  } catch (e) {
+    await showAlertDialog("Немає з'єднання з сервером", 'Помилка');
+  }
+});
+
+document.getElementById('rename-client-btn').addEventListener('click', async () => {
+  const select = document.getElementById('f-client');
+  const clientId = Number(select.value);
+  if (!clientId) return;
+  const currentName = select.options[select.selectedIndex]?.textContent || '';
+  const name = await showPromptDialog('Нова назва мережі', 'Перейменувати мережу', '', currentName, 'Зберегти');
+  if (!name) return;
+  try {
+    const res = await fetch(`${API_BASE}/ga/admin/clients/update`, {
+      method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: clientId, name })
+    });
+    const data = await res.json();
+    if (!data.success) { await showAlertDialog(data.error || 'Помилка перейменування', 'Помилка'); return; }
+    await loadClients();
+    select.value = clientId;
+  } catch (e) {
+    await showAlertDialog("Немає з'єднання з сервером", 'Помилка');
+  }
+});
+
+document.getElementById('delete-client-btn').addEventListener('click', async () => {
+  const select = document.getElementById('f-client');
+  const clientId = Number(select.value);
+  if (!clientId) return;
+  const name = select.options[select.selectedIndex]?.textContent || 'цю мережу';
+  const ok = await showConfirmDialog(`Видалити мережу «${name}»? Дію не можна скасувати.`, 'Підтвердіть видалення');
+  if (!ok) return;
+  try {
+    const res = await fetch(`${API_BASE}/ga/admin/clients/delete`, {
+      method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: clientId })
+    });
+    const data = await res.json();
+    if (!data.success) { await showAlertDialog(data.error || 'Помилка видалення', 'Помилка'); return; }
+    await loadClients();
   } catch (e) {
     await showAlertDialog("Немає з'єднання з сервером", 'Помилка');
   }
