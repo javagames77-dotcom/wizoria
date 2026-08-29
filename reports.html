@@ -274,11 +274,8 @@ function renderObjTabs() {
     wrap.appendChild(el);
   });
 
-  if (!filtered.some(o => o.id === activeObjectId)) {
-    selectObject(filtered[0].id);
-  } else {
-    renderTabsActive();
-  }
+  const targetId = filtered.some(o => o.id === activeObjectId) ? activeObjectId : filtered[0].id;
+  selectObject(targetId);
 }
 
 document.getElementById('client-filter').addEventListener('change', renderObjTabs);
