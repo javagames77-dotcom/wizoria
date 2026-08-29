@@ -231,15 +231,16 @@ tr:last-child td{border-bottom:none}
         <table>
           <thead>
             <tr>
-              <th style="width:16%">Ім'я</th>
-              <th style="width:15%">Email</th>
-              <th style="width:10%">Телефон</th>
-              <th style="width:9%">Роль</th>
-              <th style="width:9%">Статус</th>
-              <th style="width:9%">Реєстрація</th>
-              <th style="width:9%">Візит</th>
-              <th style="width:13%">Об'єкти</th>
-              <th style="width:10%"></th>
+              <th style="width:15%">Ім'я</th>
+              <th style="width:14%">Email</th>
+              <th style="width:9%">Телефон</th>
+              <th style="width:8%">Роль</th>
+              <th style="width:8%">Статус</th>
+              <th style="width:8%">Реєстрація</th>
+              <th style="width:8%">Візит</th>
+              <th style="width:9%">Мережа</th>
+              <th style="width:12%">Об'єкти</th>
+              <th style="width:9%"></th>
             </tr>
           </thead>
           <tbody id="users-tbody"></tbody>
@@ -453,6 +454,7 @@ allUsers.forEach(u => {
     const objs = u.role === 'supervisor' ? (supervisorAssignments[u.id] || []).map(a => a.object_name).join(', ') : '—';
     const regDate = u.created_at ? new Date(u.created_at).toLocaleDateString('uk-UA') : '—';
     const visitDate = u.last_visit_at ? new Date(u.last_visit_at).toLocaleDateString('uk-UA') : '—';
+    const networkName = u.client_name || '—';
     const phone = u.phone || '—';
     tbody.insertAdjacentHTML('beforeend', `
       <tr>
@@ -463,6 +465,7 @@ allUsers.forEach(u => {
         <td tabindex="0">${statusBadgeHtml(u)}</td>
         <td tabindex="0">${regDate}</td>
         <td tabindex="0">${visitDate}</td>
+        <td tabindex="0">${networkName}</td>
         <td tabindex="0">${objs || '—'}</td>
         <td style="text-align:right"><span class="manage-btn" data-user-id="${u.id}"><i class="ti ti-settings"></i>Керувати</span></td>
       </tr>
@@ -473,7 +476,7 @@ allUsers.forEach(u => {
           <div class="name-cell">${avatarHtml(u)}<span class="user-name">${u.first_name} ${u.last_name}</span></div>
           <span class="role-badge ${u.role}">${u.role === 'supervisor' ? 'Supervisor' : 'Shopper'}</span>
         </div>
-        <div class="row-card-meta">${u.email} · ${phone}<br>${statusBadgeHtml(u)}<br>Реєстрація: ${regDate} · Візит: ${visitDate}<br>${objs || '—'}</div>
+        <div class="row-card-meta">${u.email} · ${phone}<br>${statusBadgeHtml(u)}<br>Реєстрація: ${regDate} · Візит: ${visitDate}<br>Мережа: ${networkName}<br>${objs || '—'}</div>
         <div style="margin-top:8px"><span class="manage-btn" data-user-id="${u.id}"><i class="ti ti-settings"></i>Керувати</span></div>
       </div>
     `);
