@@ -163,7 +163,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
           <div class="fm-section">Акаунт</div>
 
           <label class="fm-label" for="login">Логін *</label>
-          <input class="fm-input" type="text" id="login" placeholder="латиниця, цифри, _ та .">
+          <input class="fm-input" type="text" id="login" placeholder="латиниця, цифри, _ . -">
           <div class="field-err" id="err-login"></div>
 
           <label class="fm-label" for="email">Email *</label>
@@ -240,7 +240,7 @@ function validateStep1() {
 function validateStep2() {
   let ok = true;
   const v = (id) => document.getElementById(id).value.trim();
-  if (!/^[a-zA-Z0-9_.]{3,50}$/.test(v('login'))) { setFieldError('login', 'Латиниця, цифри, _ та . (3–50)'); ok = false; } else setFieldError('login', null);
+  if (!/^[a-zA-Z0-9_.-]{3,50}$/.test(v('login'))) { setFieldError('login', 'Латиниця, цифри, "_", "." та "-" (3–50)'); ok = false; } else setFieldError('login', null);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v('email'))) { setFieldError('email', 'Некоректний email'); ok = false; } else setFieldError('email', null);
   if (v('password').length < 6) { setFieldError('password', 'Мін. 6 символів'); ok = false; } else setFieldError('password', null);
   if (!document.getElementById('photo-input').files[0]) { setFieldError('photo', "Фото обов'язкове"); ok = false; } else setFieldError('photo', null);
