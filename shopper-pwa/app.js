@@ -488,11 +488,53 @@ const Task = {
       renderHub();
       OfflineQueue.reconcile().then(() => { renderHub(); OfflineQueue.trySync(); });
     } else {
-      Router.show('geo');
-      resetGeoScreen();
+      // ТИМЧАСОВО (за прямим запитом користувача): не блокуємо покупця екраном
+      // підтвердження геолокації — GPS в приміщенні (кінотеатр) ловить погано,
+      // а фото/аудіо, які покупець і так робить, самі по собі підтверджують
+      // присутність краще за неточний GPS. Локація все одно фіксується в фоні
+      // (перше відкриття завдання) і показується Supervisor'у як довідкова
+      // інформація на карті — просто більше нікого не блокує і не зупиняє.
+      // Щоб повернути як було — див. backup / попередню версію Task.open().
+      Router.show('hub');
+      document.getElementById('hub-alert').className = 'fm-alert';
+      document.getElementById('hub-list').innerHTML = '<div class="loading-spin" style="margin:40px auto;display:block"></div>';
+      captureLocationSilently();
     }
   }
 };
+
+// ─── Тиха фонова фіксація геолокації (без блокування покупця) ──
+function captureLocationSilently() {
+  const finish = async (lat, lng, method, accuracyM) => {
+    try {
+      const { data } = await api('/ga/shopper/geo-check', {
+        method: 'POST',
+        body: { task_id: State.currentTask.task_id, lat, lng, method, accuracy_m: accuracyM }
+      });
+      if (data && data.success) {
+        State.currentSubmissionId = data.submission_id;
+        saveSession();
+      }
+    } catch (e) {
+      console.error('Silent geo-check failed:', e);
+    }
+    renderHub();
+  };
+
+  // Немає геолокації в браузері взагалі — все одно відкриваємо завдання,
+  // як «заглушку» пишемо координати самого об'єкту (чесно позначено методом 'cell',
+  // щоб Supervisor бачив — це не реальний GPS-засік).
+  if (!('geolocation' in navigator)) {
+    finish(State.currentObject.latitude, State.currentObject.longitude, 'cell', null);
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    (pos) => finish(pos.coords.latitude, pos.coords.longitude, 'gps', Math.round(pos.coords.accuracy)),
+    () => finish(State.currentObject.latitude, State.currentObject.longitude, 'cell', null), // відмова/таймаут — не блокуємо
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+  );
+}
 
 // ─── SCREEN: GEO ──────────────────────────────────────────
 function resetGeoScreen() {
