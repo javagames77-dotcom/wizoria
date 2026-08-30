@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ВЕРСІЯ ФАЙЛУ: 2026-08-30 15:50 — окрема кнопка "Тест" пушу зверху списку Завдання, з видимим результатом -->
+<!-- ВЕРСІЯ ФАЙЛУ: 2026-08-30 16:05 — автопуш після створення тим самим викликом, що й доведена кнопка "Тест" -->
 <html lang="uk">
 <head>
 <meta charset="UTF-8">
@@ -1091,24 +1091,18 @@ document.getElementById('save-task-btn').addEventListener('click', async () => {
   }
 
   // Збереження точно успішне — далі йде лише UI-навігація, окремо від мережевої помилки
-  // Пуш тепер шлеться окремим незалежним запитом (не всередині ga-admin-tasks) —
-  // так надійніше, не залежить від паралельних гілок одного execution.
-  // Викликаємо саме так, як і решту POST-запитів у цьому файлі — прямий await,
-  // без окремої обгортки, щоб не було жодної відмінності від того, що вже працює.
-  const qs = new URLSearchParams({ object_id: objectId, shopper_id: shopperId });
-  const listRes = await fetch(`${API_BASE}/ga/admin/tasks?${qs.toString()}`, { headers: authHeaders() });
-  const listData = await listRes.json();
-  const freshTasks = (listData.tasks || []).slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  const newestTaskId = freshTasks[0] && freshTasks[0].id;
-  if (newestTaskId) {
+  // Пуш тепер шлеться окремим незалежним запитом (не всередині ga-admin-tasks).
+  // Той самий, буквально, виклик, що і в тестовій кнопці "Тест" вище — вона довела, що працює.
+  const newTaskId = saveResult.task && saveResult.task.id;
+  if (newTaskId) {
     const pushRes = await fetch(`${API_BASE}/ga/admin/send-task-push`, {
       method: 'POST',
       headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ task_id: newestTaskId })
+      body: JSON.stringify({ task_id: newTaskId })
     });
     console.log('send-task-push status:', pushRes.status);
   } else {
-    console.warn('Не вдалося знайти id щойно створеного завдання для пуша');
+    console.warn('saveResult.task.id відсутній:', saveResult);
   }
 
   try {
@@ -1203,6 +1197,6 @@ document.getElementById('logout-btn').addEventListener('click', () => {
 
 init();
 </script>
-<div style="position:fixed;bottom:6px;right:10px;font-size:10px;color:var(--muted2);z-index:9999;pointer-events:none">v2026-08-30-15:50</div>
+<div style="position:fixed;bottom:6px;right:10px;font-size:10px;color:var(--muted2);z-index:9999;pointer-events:none">v2026-08-30-16:05</div>
 </body>
 </html>
