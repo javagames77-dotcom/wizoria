@@ -533,7 +533,7 @@ function renderDetail(){
         <div style="font-size:11px;color:var(--muted);margin-top:2px;display:flex;align-items:center;gap:6px">
           ${escapeHtml(s.shopper_name)} · ${s.submitted_at ? new Date(s.submitted_at).toLocaleDateString('uk-UA') : '—'} · ${s.submitted_at ? new Date(s.submitted_at).toLocaleTimeString('uk-UA',{hour:'2-digit',minute:'2-digit'}) : '—'}
           ${s.geo_lat !== null && s.geo_lat !== undefined
-            ? `<span onclick="openGeoModal()" style="display:flex;align-items:center;gap:3px;color:var(--accent);cursor:pointer;text-decoration:underline;text-underline-offset:2px"><i class="ti ti-map-pin" style="font-size:12px"></i> ${s.geo_method ? escapeHtml(s.geo_method.toUpperCase())+' зафіксовано' : 'зафіксовано'}</span>`
+            ? `<span onclick="openGeoModal()" style="display:flex;align-items:center;gap:3px;color:var(--accent);cursor:pointer;text-decoration:underline;text-underline-offset:2px"><i class="ti ti-map-pin" style="font-size:12px"></i> ${s.geo_accuracy_m !== null && s.geo_accuracy_m !== undefined ? `зафіксовано (±${s.geo_accuracy_m} м)` : 'орієнтовно (позиція не визначена)'}</span>`
             : `<span style="display:flex;align-items:center;gap:3px;color:var(--muted)"><i class="ti ti-map-pin-off" style="font-size:12px"></i> немає даних</span>`}
         </div>
       </div>
@@ -570,8 +570,8 @@ function openGeoModal() {
   const s = currentDetail.submission;
   if (s.geo_lat === null || s.geo_lat === undefined) return;
   const distTxt = s.distance_to_object_m === null || s.distance_to_object_m === undefined ? '—' : `~${s.distance_to_object_m} м від об'єкту`;
-  const methodTxt = s.geo_method ? s.geo_method.toUpperCase() : '—';
-  document.getElementById('geoModalInfo').textContent = `${distTxt} · метод: ${methodTxt}`;
+  const methodTxt = s.geo_accuracy_m !== null && s.geo_accuracy_m !== undefined ? `реальні координати, ±${s.geo_accuracy_m} м` : 'орієнтовні (позиція не визначена, показано адресу об\'єкту)';
+  document.getElementById('geoModalInfo').textContent = `${distTxt} · ${methodTxt}`;
   document.getElementById('geoModalOverlay').style.display = 'flex';
 
   if (typeof L === 'undefined') return;
