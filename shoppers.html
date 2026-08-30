@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- ВЕРСІЯ ФАЙЛУ: 2026-08-30 19:20 — додано колонку "Кінотеатр" (п.38) -->
 <html lang="uk">
 <head>
 <meta charset="UTF-8">
@@ -239,6 +240,7 @@ tr:last-child td{border-bottom:none}
               <th style="width:8%">Реєстрація</th>
               <th style="width:8%">Візит</th>
               <th style="width:9%">Мережа</th>
+              <th style="width:9%">Кінотеатр</th>
               <th style="width:12%">Об'єкти</th>
               <th style="width:9%"></th>
             </tr>
@@ -455,6 +457,7 @@ allUsers.forEach(u => {
     const regDate = u.created_at ? new Date(u.created_at).toLocaleDateString('uk-UA') : '—';
     const visitDate = u.last_visit_at ? new Date(u.last_visit_at).toLocaleDateString('uk-UA') : '—';
     const networkName = u.client_name || '—';
+    const objectName = u.object_name || '—';
     const phone = u.phone || '—';
     tbody.insertAdjacentHTML('beforeend', `
       <tr>
@@ -466,6 +469,7 @@ allUsers.forEach(u => {
         <td tabindex="0">${regDate}</td>
         <td tabindex="0">${visitDate}</td>
         <td tabindex="0">${networkName}</td>
+        <td tabindex="0">${objectName}</td>
         <td tabindex="0">${objs || '—'}</td>
         <td style="text-align:right"><span class="manage-btn" data-user-id="${u.id}"><i class="ti ti-settings"></i>Керувати</span></td>
       </tr>
@@ -476,7 +480,7 @@ allUsers.forEach(u => {
           <div class="name-cell">${avatarHtml(u)}<span class="user-name">${u.first_name} ${u.last_name}</span></div>
           <span class="role-badge ${u.role}">${u.role === 'supervisor' ? 'Supervisor' : 'Shopper'}</span>
         </div>
-        <div class="row-card-meta">${u.email} · ${phone}<br>${statusBadgeHtml(u)}<br>Реєстрація: ${regDate} · Візит: ${visitDate}<br>Мережа: ${networkName}<br>${objs || '—'}</div>
+        <div class="row-card-meta">${u.email} · ${phone}<br>${statusBadgeHtml(u)}<br>Реєстрація: ${regDate} · Візит: ${visitDate}<br>Мережа: ${networkName} · Кінотеатр: ${objectName}<br>${objs || '—'}</div>
         <div style="margin-top:8px"><span class="manage-btn" data-user-id="${u.id}"><i class="ti ti-settings"></i>Керувати</span></div>
       </div>
     `);
