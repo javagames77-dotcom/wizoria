@@ -1066,6 +1066,14 @@ document.getElementById('save-task-btn').addEventListener('click', async () => {
   }
 
   // Збереження точно успішне — далі йде лише UI-навігація, окремо від мережевої помилки
+  // Пуш тепер шлеться окремим незалежним запитом (не всередині ga-admin-tasks) —
+  // так надійніше, не залежить від паралельних гілок одного execution.
+  if (saveResult.task && saveResult.task.id) {
+    fetch(`${API_BASE}/ga/admin/send-task-push`, {
+      method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ task_id: saveResult.task.id })
+    }).catch(err => console.warn('Push-запит не вдався (не критично):', err));
+  }
   try {
     await showAlertDialog('Завдання успішно створено.', 'Готово');
     showListView();
