@@ -630,7 +630,10 @@ function detectAndConfirmLocation() {
       const lat = pos.coords.latitude;
       const lng = pos.coords.longitude;
       const accuracy = Math.round(pos.coords.accuracy);
-      const method = accuracy <= 30 ? 'gps' : (accuracy <= 100 ? 'wifi' : 'cell');
+      // Раніше тут вгадувався ярлик GPS/WIFI/CELL по радіусу похибки — це була видумка,
+      // телефон ніколи не повідомляє, що реально спрацювало. Тепер чесно: завжди 'gps',
+      // а супервайзер бачить реальну похибку в метрах, а не вигаданий ярлик.
+      const method = 'gps';
 
       updateUserMarkerOnMap(lat, lng);
 
