@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════
 // GhostAudit / Wizoria — Shopper PWA
-// ВЕРСІЯ ФАЙЛУ: 2026-08-30 12:40 — інструкція при відмові в доступі до мікрофону (п.18)
+// ВЕРСІЯ ФАЙЛУ: 2026-08-30 18:00 — клік "назад" в анкеті більше не скидає відповіді (п.41)
 // ═══════════════════════════════════════════════════════════
 
 const API_BASE = 'https://primary-production-4b93e.up.railway.app/webhook';
@@ -1098,13 +1098,19 @@ const Quest = {
 
     await api('/ga/shopper/questionnaire-open', { method: 'POST', body: { submission_id: State.currentSubmissionId } });
 
-    State.quest = {
-      questionnaireId: questionnaire.questionnaire_id,
-      sectionTitle: questionnaire.title,
-      criteria: questionnaire.criteria,
-      answers: {},
-      idx: 0
-    };
+    // Клік "← Завдання" не видаляє State.quest — це просто перемикання екрану.
+    // Якщо гість повертається до ТІЄЇ Ж анкети (не завершивши її), продовжуємо
+    // з того самого місця, а не скидаємо відповіді назад до нуля.
+    const resuming = State.quest && State.quest.questionnaireId === questionnaire.questionnaire_id;
+    if (!resuming) {
+      State.quest = {
+        questionnaireId: questionnaire.questionnaire_id,
+        sectionTitle: questionnaire.title,
+        criteria: questionnaire.criteria,
+        answers: {},
+        idx: 0
+      };
+    }
     Router.show('quest');
     this.renderCurrent();
   },
@@ -1146,6 +1152,10 @@ const Quest = {
         q.answers[c.id] = b.dataset.val;
         btn.disabled = false;
       }));
+      if (q.answers[c.id] !== undefined) {
+        const prev = body.querySelector(`.yn-btn[data-val="${q.answers[c.id]}"]`);
+        if (prev) { prev.classList.add('selected'); btn.disabled = false; }
+      }
     } else if (scaleMatch) {
       const min = parseInt(scaleMatch[1], 10), max = parseInt(scaleMatch[2], 10);
       let opts = '';
@@ -1157,14 +1167,19 @@ const Quest = {
         q.answers[c.id] = b.dataset.val;
         btn.disabled = false;
       }));
+      if (q.answers[c.id] !== undefined) {
+        const prev = body.querySelector(`.scale-btn[data-val="${q.answers[c.id]}"]`);
+        if (prev) { prev.classList.add('selected'); btn.disabled = false; }
+      }
     } else {
       body.innerHTML = `<div class="q-question">${escapeHtml(c.question_text)}</div>
-        <textarea class="fm-input" style="height:90px" id="q-text-input" placeholder="Ваша відповідь..."></textarea>`;
+        <textarea class="fm-input" style="height:90px" id="q-text-input" placeholder="Ваша відповідь...">${escapeHtml(q.answers[c.id] || '')}</textarea>`;
       const ta = document.getElementById('q-text-input');
       ta.addEventListener('input', () => {
         q.answers[c.id] = ta.value.trim();
         btn.disabled = ta.value.trim() === '';
       });
+      if (q.answers[c.id]) btn.disabled = false;
     }
     btn.textContent = '';
     btn.innerHTML = (q.idx === visible.length - 1) ? 'Завершити <i class="ti ti-check" aria-hidden="true"></i>' : 'Далі <i class="ti ti-arrow-right" aria-hidden="true"></i>';
