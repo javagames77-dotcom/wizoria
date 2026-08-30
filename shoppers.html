@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- ВЕРСІЯ ФАЙЛУ: 2026-08-30 20:50 — поле "Кінотеатр" додано в картку профілю покупця (п.38) -->
 <!-- ВЕРСІЯ ФАЙЛУ: 2026-08-30 19:20 — додано колонку "Кінотеатр" (п.38) -->
 <html lang="uk">
 <head>
@@ -289,6 +290,9 @@ tr:last-child td{border-bottom:none}
       <div class="form-row">
         <div class="form-field"><label>Телефон</label><input type="text" id="sd-phone" placeholder="+380XXXXXXXXX"></div>
         <div class="form-field"><label>Місто</label><input type="text" id="sd-city"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-field"><label>Кінотеатр (при реєстрації)</label><input type="text" id="sd-cinema" disabled style="opacity:.7;cursor:not-allowed"></div>
       </div>
       <div class="form-row">
         <div class="form-field"><label>Вік</label><input type="number" id="sd-age" min="18" max="80"></div>
@@ -692,6 +696,7 @@ async function renderShopperDetail() {
   document.getElementById('sd-login').value = u.login || '';
   document.getElementById('sd-phone').value = u.phone || '';
   document.getElementById('sd-city').value = u.city || '';
+  document.getElementById('sd-cinema').value = u.object_name || 'Не вказано (реєстрація до впровадження цього поля)';
   document.getElementById('sd-age').value = u.age ?? '';
   document.getElementById('sd-gender').value = u.gender || '';
   document.getElementById('sd-password').value = '';
