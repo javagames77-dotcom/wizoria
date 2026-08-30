@@ -418,7 +418,10 @@ const Tasks = {
       // Клієнт прямо просив: здане завдання не сортувати вниз, а взагалі прибирати
       // зі списку — воно не редагується гостем і не має "висіти" в кабінеті.
       // Історію виконаних завдань і так видно окремо в "Мої звіти".
-      State.tasks = data.tasks.filter(t => t.status !== 'submitted');
+      // ВАЖЛИВО: приховувати треба не лише 'submitted', а й уже перевірені
+      // супервайзером статуси ('approved'/'rejected') — інакше саме вони й "застрягали".
+      const HIDDEN_STATUSES = ['submitted', 'approved', 'rejected'];
+      State.tasks = data.tasks.filter(t => !HIDDEN_STATUSES.includes(t.status));
       if (data.object_progress) {
         document.getElementById('tasks-progress').textContent =
           `${data.object_progress.completed_tasks}/${data.object_progress.total_tasks} виконано`;
