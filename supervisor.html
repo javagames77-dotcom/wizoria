@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ВЕРСІЯ ФАЙЛУ: 2026-08-30 08:30 — гео-радіус + червоний "!" поза радіусом. Якщо в перегляді коду сторінки цього рядка немає — залилась стара версія. -->
+<!-- ВЕРСІЯ ФАЙЛУ: 2026-08-30 14:20 — п.21: бейдж + причина здачі неповним завданням ->
 <html lang="uk">
 <head>
 <meta charset="UTF-8">
@@ -404,7 +404,7 @@ function reviewRow(s){
   }
 
   return `<tr style="border-bottom:0.5px solid var(--border);${rowBg}">
-    <td tabindex="0" style="padding:10px 10px;outline:none"><div style="font-weight:500;color:var(--black)">${escapeHtml(s.object_name)}</div><div style="font-size:10px;color:var(--muted)">${escapeHtml(s.section_title||'—')}</div></td>
+    <td tabindex="0" style="padding:10px 10px;outline:none"><div style="font-weight:500;color:var(--black)">${escapeHtml(s.object_name)}${s.submitted_incomplete ? ' <span title="Здано неповним" style="color:var(--danger)">&#9888;</span>' : ''}</div><div style="font-size:10px;color:var(--muted)">${escapeHtml(s.section_title||'—')}</div></td>
     <td tabindex="0" style="padding:10px 10px;color:var(--muted);outline:none">${escapeHtml(s.shopper_name)}</td>
     <td tabindex="0" style="padding:10px 10px;color:var(--muted);outline:none">${time}</td>
     <td tabindex="0" style="padding:10px 10px;text-align:center;font-weight:500;color:${scoreColor};outline:none">${scoreTxt}</td>
@@ -538,6 +538,10 @@ function renderDetail(){
             ? `<span onclick="openGeoModal()" style="display:flex;align-items:center;gap:4px;color:var(--accent);cursor:pointer;text-decoration:underline;text-underline-offset:2px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M12 21c-4.5-4.5-7-8.4-7-12a7 7 0 0 1 14 0c0 3.6-2.5 7.5-7 12z"/><circle cx="12" cy="9" r="2.3"/></svg> Геопозиція${(s.distance_to_object_m !== null && s.distance_to_object_m !== undefined && s.geo_radius_m !== null && s.distance_to_object_m > s.geo_radius_m) ? ' <span style="color:var(--danger);font-weight:700" title="Поза радіусом геолокації об\'єкту">&#33;</span>' : ''}</span>`
             : `<span style="display:flex;align-items:center;gap:3px;color:var(--muted)"><i class="ti ti-map-pin-off" style="font-size:12px"></i> немає даних</span>`}
         </div>
+        ${s.submitted_incomplete ? `<div style="margin-top:6px;font-size:11px;color:var(--danger);background:var(--danger-bg);border:0.5px solid var(--danger-border);border-radius:6px;padding:6px 10px;display:flex;align-items:center;gap:6px">
+          <i class="ti ti-alert-triangle" style="font-size:13px;flex-shrink:0"></i>
+          <span>Гість здав завдання неповним ${buildMissingText(s.missing_items)}</span>
+        </div>` : ''}
       </div>
       <div style="display:flex;gap:8px;align-items:center">
         <div style="display:inline-flex;align-items:baseline;gap:3px;padding:4px 10px;border-radius:6px;background:var(--accent-light);border:0.5px solid var(--accent-border)">
@@ -560,6 +564,18 @@ function renderDetail(){
     </div>
   `;
   renderZoneContent();
+}
+
+function buildMissingText(missingItems) {
+  if (!missingItems) return '';
+  const parts = [];
+  const photos = missingItems.photos || [];
+  const audio = missingItems.audio || [];
+  const criteria = missingItems.criteria || [];
+  if (photos.length) parts.push(`фото (${photos.length})`);
+  if (audio.length) parts.push(`аудіо (${audio.length})`);
+  if (criteria.length) parts.push(`анкета (${criteria.length} питань)`);
+  return parts.length ? `— бракує: ${parts.join(', ')}` : '';
 }
 
 function switchZoneTab(key){
