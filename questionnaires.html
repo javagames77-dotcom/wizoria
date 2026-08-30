@@ -302,6 +302,7 @@ function renderCriteria() {
       <span class="q-badge">${ANSWER_TYPE_LABELS[c.answer_type] || c.answer_type}</span>
       ${hasChild ? '<span class="q-badge cond">Умовна гілка</span>' : ''}
       ${c.is_critical ? '<span class="q-badge required">Обов\'язкове</span>' : ''}
+      ${c.is_skippable ? '<span class="q-badge" style="background:var(--bg3);color:var(--muted)">Можна пропустити</span>' : ''}
       <i class="ti ti-pencil q-icon-btn" data-action="edit" data-id="${c.id}"></i>
       <i class="ti ti-trash q-icon-btn danger" data-action="delete" data-id="${c.id}"></i>
     `;
@@ -347,6 +348,7 @@ function editCriterion(id) {
       </div>
       <div style="font-size:11px;color:var(--muted);margin-bottom:9px">Зміна типу заблокована, якщо на це питання вже є відповіді покупців або AI-результати.</div>
       <div class="chk-row"><input type="checkbox" id="ef-critical" ${c.is_critical ? 'checked' : ''}><label for="ef-critical">Обов'язкове (критичний критерій)</label></div>
+      <div class="chk-row"><input type="checkbox" id="ef-skippable" ${c.is_skippable ? 'checked' : ''}><label for="ef-skippable">Можна пропустити (гість може не відповідати)</label></div>
       <div class="mini-form-actions">
         <button class="btn-outline btn-small" id="ef-cancel">Скасувати</button>
         <button class="btn-primary btn-small" id="ef-save">Зберегти</button>
@@ -367,6 +369,7 @@ function editCriterion(id) {
           question_text: text,
           weight: Number(document.getElementById('ef-weight').value) || c.weight,
           is_critical: document.getElementById('ef-critical').checked,
+          is_skippable: document.getElementById('ef-skippable').checked,
           answer_type: document.getElementById('ef-type').value
         })
       });
@@ -532,6 +535,7 @@ document.getElementById('add-question-btn').addEventListener('click', () => {
         <div class="form-field"><label>Вага (0–100)</label><input type="number" id="qf-weight" value="10" min="0" max="100"></div>
       </div>
       <div class="chk-row"><input type="checkbox" id="qf-critical"><label for="qf-critical">Обов'язкове (критичний критерій)</label></div>
+      <div class="chk-row"><input type="checkbox" id="qf-skippable"><label for="qf-skippable">Можна пропустити (гість може не відповідати)</label></div>
       <div class="form-row">
         <div class="form-field"><label>Умовна гілка: залежить від</label>
           <select id="qf-parent" ${criteria.length === 0 ? 'disabled' : ''}>
@@ -567,6 +571,7 @@ document.getElementById('add-question-btn').addEventListener('click', () => {
           answer_type: document.getElementById('qf-type').value,
           weight: Number(document.getElementById('qf-weight').value) || 10,
           is_critical: document.getElementById('qf-critical').checked,
+          is_skippable: document.getElementById('qf-skippable').checked,
           parent_criterion_id: parentId,
           condition_value: parentId ? conditionSelect.value : null
         })
