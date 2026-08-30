@@ -362,23 +362,15 @@ const Objects = {
     const list = document.getElementById('objects-list');
     const empty = document.getElementById('objects-empty');
     list.innerHTML = '';
-    if (State.objects.length === 0) { empty.style.display = 'block'; return; }
+    if (State.objects.length === 0 || State.objects.every(o => o.all_done)) { empty.style.display = 'block'; return; }
     empty.style.display = 'none';
 
     let firstActiveSeen = false;
 
     State.objects.forEach(o => {
+      if (o.all_done) return; // клієнт прямо просив: здане прибирати зі списку, не показувати навіть заглушкою
       const card = document.createElement('div');
-
-      if (o.all_done) {
-        card.className = 'card done';
-        card.innerHTML = `
-          <div class="card-row" style="margin-bottom:0">
-            <div class="card-title">${escapeHtml(o.object_name)}</div>
-            <span class="badge success">Здано</span>
-          </div>
-        `;
-      } else {
+      {
         const isPrimary = !firstActiveSeen;
         firstActiveSeen = true;
         card.className = 'card' + (isPrimary ? ' highlight' : '');
