@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════
 // GhostAudit / Wizoria — Shopper PWA
-// ВЕРСІЯ ФАЙЛУ: 2026-08-30 18:30 — кнопка "Пропустити питання" для позначених адміном питань (п.42)
+// ВЕРСІЯ ФАЙЛУ: 2026-08-30 19:00 — хаб покупця тепер сортується за маршрутом Вхід→Каса→Бар→Зал→Туалет→Вихід (п.13, PWA-частина)
 // ═══════════════════════════════════════════════════════════
 
 const API_BASE = 'https://primary-production-4b93e.up.railway.app/webhook';
@@ -696,6 +696,17 @@ function showGeoError(msg, cls = 'err') {
 // ─── SCREEN: HUB (checklist for current task) ────────────
 function hubKey(kind, id) { return kind + '-' + id; }
 
+// Порядок секцій — за реальним маршрутом відвідувача кінотеатру (та сама логіка,
+// що вже стоїть в Admin для п.13): Вхід → Каса → Бар → Зал → Туалет → Вихід.
+const SECTION_NAMES = { vhid: 'Вхід', kasa: 'Каса', bar: 'Бар', zal: 'Зал', tualet: 'Туалет', vyhid: 'Вихід' };
+const SECTION_ORDER = Object.keys(SECTION_NAMES);
+const SECTION_ALIASES = { cinema_hall: 'zal' };
+function sectionRank(key) {
+  const normalized = SECTION_ALIASES[key] || key;
+  const i = SECTION_ORDER.indexOf(normalized);
+  return i === -1 ? SECTION_ORDER.length : i;
+}
+
 function renderHub() {
   const t = State.currentTask;
   document.getElementById('hub-object-name').textContent = State.currentObject.object_name;
@@ -707,26 +718,28 @@ function renderHub() {
   const guard = (fn) => blocked ? (() => {}) : fn;
   let firstPendingSeen = false;
 
-  t.photo_requirements.forEach(r => {
-    const key = hubKey('photo', r.id);
-    const done = State.hubProgress[key]; // true | 'queued' | undefined
-    const isPrimary = !done && !firstPendingSeen;
-    if (!done) firstPendingSeen = true;
-    list.appendChild(hubRow('photo', r.title, `${r.required_count} фото`, done, guard(() => Photo.open(r)), blocked, isPrimary));
-  });
-  t.audio_requirements.forEach(r => {
-    const key = hubKey('audio', r.id);
+  // Раніше показувались групами (усі фото, потім усі аудіо, потім усі анкети) —
+  // без жодного логічного порядку всередині групи. Тепер все зведено в один
+  // список і відсортовано за реальним маршрутом відвідувача (п.13).
+  const combined = [
+    ...t.photo_requirements.map(r => ({ kind: 'photo', r })),
+    ...t.audio_requirements.map(r => ({ kind: 'audio', r })),
+    ...t.questionnaires.map(r => ({ kind: 'quest', r }))
+  ].sort((a, b) => sectionRank(a.r.section_key) - sectionRank(b.r.section_key));
+
+  combined.forEach(({ kind, r }) => {
+    let key, sub, onOpen;
+    if (kind === 'photo') {
+      key = hubKey('photo', r.id); sub = `${r.required_count} фото`; onOpen = () => Photo.open(r);
+    } else if (kind === 'audio') {
+      key = hubKey('audio', r.id); sub = `Мін. ${r.min_duration_sec} сек`; onOpen = () => Audio.open(r);
+    } else {
+      key = hubKey('quest', r.questionnaire_id); sub = `${r.criteria_count} питань`; onOpen = () => Quest.open(r);
+    }
     const done = State.hubProgress[key];
     const isPrimary = !done && !firstPendingSeen;
     if (!done) firstPendingSeen = true;
-    list.appendChild(hubRow('audio', r.title, `Мін. ${r.min_duration_sec} сек`, done, guard(() => Audio.open(r)), blocked, isPrimary));
-  });
-  t.questionnaires.forEach(r => {
-    const key = hubKey('quest', r.questionnaire_id);
-    const done = State.hubProgress[key];
-    const isPrimary = !done && !firstPendingSeen;
-    if (!done) firstPendingSeen = true;
-    list.appendChild(hubRow('quest', r.title, `${r.criteria_count} питань`, done, guard(() => Quest.open(r)), blocked, isPrimary));
+    list.appendChild(hubRow(kind, r.title, sub, done, guard(onOpen), blocked, isPrimary));
   });
 
   document.getElementById('btn-hub-submit').disabled = blocked;
