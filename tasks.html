@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ВЕРСІЯ ФАЙЛУ: 2026-08-30 16:05 — автопуш після створення тим самим викликом, що й доведена кнопка "Тест" -->
+<!-- ВЕРСІЯ ФАЙЛУ: 2026-08-30 16:20 — подвійна страховка: task.id з відповіді АБО зі списку завдань -->
 <html lang="uk">
 <head>
 <meta charset="UTF-8">
@@ -1092,8 +1092,17 @@ document.getElementById('save-task-btn').addEventListener('click', async () => {
 
   // Збереження точно успішне — далі йде лише UI-навігація, окремо від мережевої помилки
   // Пуш тепер шлеться окремим незалежним запитом (не всередині ga-admin-tasks).
-  // Той самий, буквально, виклик, що і в тестовій кнопці "Тест" вище — вона довела, що працює.
-  const newTaskId = saveResult.task && saveResult.task.id;
+  // Спочатку пробуємо прямо з відповіді створення; якщо там немає task.id —
+  // беремо через перевірений список завдань, щоб push все одно пішов.
+  let newTaskId = saveResult.task && saveResult.task.id;
+  if (!newTaskId) {
+    console.warn('saveResult.task.id відсутній, шукаю через список завдань:', saveResult);
+    const qs = new URLSearchParams({ object_id: objectId, shopper_id: shopperId });
+    const listRes = await fetch(`${API_BASE}/ga/admin/tasks?${qs.toString()}`, { headers: authHeaders() });
+    const listData = await listRes.json();
+    const freshTasks = (listData.tasks || []).slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    newTaskId = freshTasks[0] && freshTasks[0].id;
+  }
   if (newTaskId) {
     const pushRes = await fetch(`${API_BASE}/ga/admin/send-task-push`, {
       method: 'POST',
@@ -1102,7 +1111,7 @@ document.getElementById('save-task-btn').addEventListener('click', async () => {
     });
     console.log('send-task-push status:', pushRes.status);
   } else {
-    console.warn('saveResult.task.id відсутній:', saveResult);
+    console.warn('Не вдалося визначити id завдання для пуша жодним способом');
   }
 
   try {
@@ -1197,6 +1206,6 @@ document.getElementById('logout-btn').addEventListener('click', () => {
 
 init();
 </script>
-<div style="position:fixed;bottom:6px;right:10px;font-size:10px;color:var(--muted2);z-index:9999;pointer-events:none">v2026-08-30-16:05</div>
+<div style="position:fixed;bottom:6px;right:10px;font-size:10px;color:var(--muted2);z-index:9999;pointer-events:none">v2026-08-30-16:20</div>
 </body>
 </html>
