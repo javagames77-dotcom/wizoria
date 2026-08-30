@@ -415,12 +415,10 @@ const Tasks = {
         list.innerHTML = `<div class="fm-alert show err">${escapeHtml(data.error || 'Не вдалося завантажити завдання')}</div>`;
         return;
       }
-      State.tasks = data.tasks;
-      // Та сама логіка, що й у списку об'єктів: активні завдання зверху, здані знизу.
-      State.tasks.sort((a, b) => {
-        const aDone = a.status === 'submitted', bDone = b.status === 'submitted';
-        return (aDone === bDone) ? 0 : (aDone ? 1 : -1);
-      });
+      // Клієнт прямо просив: здане завдання не сортувати вниз, а взагалі прибирати
+      // зі списку — воно не редагується гостем і не має "висіти" в кабінеті.
+      // Історію виконаних завдань і так видно окремо в "Мої звіти".
+      State.tasks = data.tasks.filter(t => t.status !== 'submitted');
       if (data.object_progress) {
         document.getElementById('tasks-progress').textContent =
           `${data.object_progress.completed_tasks}/${data.object_progress.total_tasks} виконано`;
