@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ВЕРСІЯ ФАЙЛУ: 2026-08-30 15:20 — id нового завдання беремо через перевірений GET-список, не через відповідь створення -->
+<!-- ВЕРСІЯ ФАЙЛУ: 2026-08-30 15:35 — push-виклик 1в1 у стилі решти POST-запитів, без окремої IIFE-обгортки -->
 <html lang="uk">
 <head>
 <meta charset="UTF-8">
@@ -1069,28 +1069,24 @@ document.getElementById('save-task-btn').addEventListener('click', async () => {
   // Збереження точно успішне — далі йде лише UI-навігація, окремо від мережевої помилки
   // Пуш тепер шлеться окремим незалежним запитом (не всередині ga-admin-tasks) —
   // так надійніше, не залежить від паралельних гілок одного execution.
-  // Не покладаємось на форму відповіді створення (могла розійтися з тим, що реально
-  // задеплоєно) — беремо id через GET-список завдань, який точно вже працює.
-  (async () => {
-    try {
-      const qs = new URLSearchParams({ object_id: objectId, shopper_id: shopperId });
-      const listRes = await fetch(`${API_BASE}/ga/admin/tasks?${qs.toString()}`, { headers: authHeaders() });
-      const listData = await listRes.json();
-      const freshTasks = (listData.tasks || []).slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-      const newestTaskId = freshTasks[0] && freshTasks[0].id;
-      if (newestTaskId) {
-        const pushRes = await fetch(`${API_BASE}/ga/admin/send-task-push`, {
-          method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-          body: JSON.stringify({ task_id: newestTaskId })
-        });
-        console.log('send-task-push status:', pushRes.status);
-      } else {
-        console.warn('Не вдалося знайти id щойно створеного завдання для пуша');
-      }
-    } catch (err) {
-      console.warn('Push-запит не вдався (не критично):', err);
-    }
-  })();
+  // Викликаємо саме так, як і решту POST-запитів у цьому файлі — прямий await,
+  // без окремої обгортки, щоб не було жодної відмінності від того, що вже працює.
+  const qs = new URLSearchParams({ object_id: objectId, shopper_id: shopperId });
+  const listRes = await fetch(`${API_BASE}/ga/admin/tasks?${qs.toString()}`, { headers: authHeaders() });
+  const listData = await listRes.json();
+  const freshTasks = (listData.tasks || []).slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  const newestTaskId = freshTasks[0] && freshTasks[0].id;
+  if (newestTaskId) {
+    const pushRes = await fetch(`${API_BASE}/ga/admin/send-task-push`, {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ task_id: newestTaskId })
+    });
+    console.log('send-task-push status:', pushRes.status);
+  } else {
+    console.warn('Не вдалося знайти id щойно створеного завдання для пуша');
+  }
+
   try {
     await showAlertDialog('Завдання успішно створено.', 'Готово');
     showListView();
@@ -1183,6 +1179,6 @@ document.getElementById('logout-btn').addEventListener('click', () => {
 
 init();
 </script>
-<div style="position:fixed;bottom:6px;right:10px;font-size:10px;color:var(--muted2);z-index:9999;pointer-events:none">v2026-08-30-15:20</div>
+<div style="position:fixed;bottom:6px;right:10px;font-size:10px;color:var(--muted2);z-index:9999;pointer-events:none">v2026-08-30-15:35</div>
 </body>
 </html>
