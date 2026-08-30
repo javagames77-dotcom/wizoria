@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ВЕРСІЯ ФАЙЛУ: 2026-08-30 16:40 — результат автопушу тепер видно в тій самій панелі "Тест", не тільки в консолі -->
+<!-- ВЕРСІЯ ФАЙЛУ: 2026-08-30 17:00 — повний діагностичний alert одразу після Створити, з усіма деталями пушу -->
 <html lang="uk">
 <head>
 <meta charset="UTF-8">
@@ -331,7 +331,7 @@ td[tabindex]:focus{box-shadow:inset 0 0 0 2px var(--accent);border-radius:3px}
   <div id="modal-box">
     <div id="modal-icon" style="font-size:28px;margin-bottom:10px"></div>
     <div id="modal-title" style="font-size:15px;font-weight:600;color:var(--black);margin-bottom:6px"></div>
-    <div id="modal-message" style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:18px"></div>
+    <div id="modal-message" style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:18px;white-space:pre-line"></div>
     <div id="modal-actions" style="display:flex;justify-content:flex-end;gap:8px"></div>
   </div>
 </div>
@@ -1094,31 +1094,45 @@ document.getElementById('save-task-btn').addEventListener('click', async () => {
   // Пуш тепер шлеться окремим незалежним запитом (не всередині ga-admin-tasks).
   // Спочатку пробуємо прямо з відповіді створення; якщо там немає task.id —
   // беремо через перевірений список завдань, щоб push все одно пішов.
-  // Результат тепер видно прямо на екрані, а не тільки в консолі.
-  const pushDebugEl = document.getElementById('push-test-result');
+  // Весь процес тепер виводиться в один alert одразу після створення — максимум деталей.
+  const debugLines = [];
+  debugLines.push(`saveResult.task: ${JSON.stringify(saveResult.task)}`);
+  debugLines.push(`object_id (форма): ${objectId}`);
+  debugLines.push(`shopper_id (форма): ${shopperId}`);
+
   let newTaskId = saveResult.task && saveResult.task.id;
-  let pushDebugPrefix = 'з відповіді створення';
+  let source = 'saveResult.task.id';
   if (!newTaskId) {
-    pushDebugPrefix = 'через список завдань (task.id був відсутній)';
+    source = 'GET /ga/admin/tasks (fallback)';
     const qs = new URLSearchParams({ object_id: objectId, shopper_id: shopperId });
-    const listRes = await fetch(`${API_BASE}/ga/admin/tasks?${qs.toString()}`, { headers: authHeaders() });
-    const listData = await listRes.json();
+    const listUrl = `${API_BASE}/ga/admin/tasks?${qs.toString()}`;
+    debugLines.push(`Fallback URL: ${listUrl}`);
+    const listRes = await fetch(listUrl, { headers: authHeaders() });
+    const listText = await listRes.text();
+    debugLines.push(`Fallback HTTP ${listRes.status}: ${listText.slice(0, 300)}`);
+    let listData = {};
+    try { listData = JSON.parse(listText); } catch (_) {}
     const freshTasks = (listData.tasks || []).slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     newTaskId = freshTasks[0] && freshTasks[0].id;
   }
+  debugLines.push(`Джерело id: ${source}`);
+  debugLines.push(`Використаний task_id: ${newTaskId}`);
+
   if (newTaskId) {
-    const pushRes = await fetch(`${API_BASE}/ga/admin/send-task-push`, {
+    const pushUrl = `${API_BASE}/ga/admin/send-task-push`;
+    debugLines.push(`Push URL: ${pushUrl}`);
+    const pushRes = await fetch(pushUrl, {
       method: 'POST',
       headers: { ...authHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ task_id: newTaskId })
     });
     const pushText = await pushRes.text();
-    if (pushDebugEl) pushDebugEl.textContent = `автопуш (id=${newTaskId}, ${pushDebugPrefix}): HTTP ${pushRes.status}: ${pushText}`;
-    console.log('send-task-push:', pushRes.status, pushText);
+    debugLines.push(`Push HTTP ${pushRes.status}: ${pushText}`);
   } else {
-    if (pushDebugEl) pushDebugEl.textContent = 'автопуш: не вдалося визначити id завдання жодним способом';
-    console.warn('Не вдалося визначити id завдання для пуша жодним способом');
+    debugLines.push('task_id не визначено жодним способом — push не надсилався');
   }
+
+  await showAlertDialog(debugLines.join('\n'), 'Діагностика пушу');
 
   try {
     await showAlertDialog('Завдання успішно створено.', 'Готово');
@@ -1212,6 +1226,6 @@ document.getElementById('logout-btn').addEventListener('click', () => {
 
 init();
 </script>
-<div style="position:fixed;bottom:6px;right:10px;font-size:10px;color:var(--muted2);z-index:9999;pointer-events:none">v2026-08-30-16:40</div>
+<div style="position:fixed;bottom:6px;right:10px;font-size:10px;color:var(--muted2);z-index:9999;pointer-events:none">v2026-08-30-17:00</div>
 </body>
 </html>
