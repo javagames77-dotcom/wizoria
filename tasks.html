@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ВЕРСІЯ ФАЙЛУ: 2026-08-30 17:15 — діагностичний alert обгорнутий у try/catch, з'являється завжди -->
+<!-- ВЕРСІЯ ФАЙЛУ: 2026-08-30 17:35 — знайдено справжню причину: створення з шаблону йшло іншим шляхом, минаючи пуш. Виправлено там само, прибрано тестові елементи -->
 <html lang="uk">
 <head>
 <meta charset="UTF-8">
@@ -174,13 +174,6 @@ td[tabindex]:focus{box-shadow:inset 0 0 0 2px var(--accent);border-radius:3px}
           <div class="page-sub">Усі завдання системи</div>
         </div>
         <button class="btn-primary" id="new-task-btn"><i class="ti ti-plus"></i>Нове завдання</button>
-      </div>
-
-      <div style="background:var(--warn-bg);border:1px solid var(--warn-border);border-radius:10px;padding:12px;margin-bottom:16px;display:flex;gap:8px;align-items:center">
-        <span style="font-size:12px;color:var(--warn-text)">Тест пушу — id завдання:</span>
-        <input type="number" id="push-test-task-id" value="22" style="width:80px;height:30px;border:1px solid var(--border);border-radius:6px;padding:0 8px;font-size:12px">
-        <button class="btn-outline" id="push-test-btn" style="height:30px;padding:0 12px;font-size:12px">Тест</button>
-        <span id="push-test-result" style="font-size:11px;color:var(--muted);font-family:monospace"></span>
       </div>
 
       <div class="stat-grid">
@@ -873,22 +866,6 @@ async function showFormView() {
 
 document.getElementById('new-task-btn').addEventListener('click', showFormView);
 
-document.getElementById('push-test-btn').addEventListener('click', async () => {
-  const resultEl = document.getElementById('push-test-result');
-  const taskId = document.getElementById('push-test-task-id').value;
-  resultEl.textContent = '...';
-  try {
-    const r = await fetch(`${API_BASE}/ga/admin/send-task-push`, {
-      method: 'POST',
-      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ task_id: Number(taskId) })
-    });
-    const text = await r.text();
-    resultEl.textContent = `HTTP ${r.status}: ${text}`;
-  } catch (err) {
-    resultEl.textContent = `ПОМИЛКА МЕРЕЖІ: ${err.message}`;
-  }
-});
 document.getElementById('cancel-task-btn').addEventListener('click', showListView);
 
 // --- Chips ---
@@ -1092,50 +1069,24 @@ document.getElementById('save-task-btn').addEventListener('click', async () => {
 
   // Збереження точно успішне — далі йде лише UI-навігація, окремо від мережевої помилки
   // Пуш тепер шлеться окремим незалежним запитом (не всередині ga-admin-tasks).
-  // Весь блок обгорнутий у try/catch — вікно діагностики має з'явитись у будь-якому
-  // випадку, навіть якщо якийсь із запитів впаде з мережевою помилкою.
-  const debugLines = [];
   try {
-    debugLines.push(`saveResult.task: ${JSON.stringify(saveResult.task)}`);
-    debugLines.push(`object_id (форма): ${objectId}`);
-    debugLines.push(`shopper_id (форма): ${shopperId}`);
-
     let newTaskId = saveResult.task && saveResult.task.id;
-    let source = 'saveResult.task.id';
     if (!newTaskId) {
-      source = 'GET /ga/admin/tasks (fallback)';
       const qs = new URLSearchParams({ object_id: objectId, shopper_id: shopperId });
-      const listUrl = `${API_BASE}/ga/admin/tasks?${qs.toString()}`;
-      debugLines.push(`Fallback URL: ${listUrl}`);
-      const listRes = await fetch(listUrl, { headers: authHeaders() });
-      const listText = await listRes.text();
-      debugLines.push(`Fallback HTTP ${listRes.status}: ${listText.slice(0, 300)}`);
-      let listData = {};
-      try { listData = JSON.parse(listText); } catch (_) {}
+      const listRes = await fetch(`${API_BASE}/ga/admin/tasks?${qs.toString()}`, { headers: authHeaders() });
+      const listData = await listRes.json();
       const freshTasks = (listData.tasks || []).slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
       newTaskId = freshTasks[0] && freshTasks[0].id;
     }
-    debugLines.push(`Джерело id: ${source}`);
-    debugLines.push(`Використаний task_id: ${newTaskId}`);
-
     if (newTaskId) {
-      const pushUrl = `${API_BASE}/ga/admin/send-task-push`;
-      debugLines.push(`Push URL: ${pushUrl}`);
-      const pushRes = await fetch(pushUrl, {
-        method: 'POST',
-        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      await fetch(`${API_BASE}/ga/admin/send-task-push`, {
+        method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ task_id: newTaskId })
       });
-      const pushText = await pushRes.text();
-      debugLines.push(`Push HTTP ${pushRes.status}: ${pushText}`);
-    } else {
-      debugLines.push('task_id не визначено жодним способом — push не надсилався');
     }
-  } catch (debugErr) {
-    debugLines.push(`ВИНЯТОК під час діагностики: ${debugErr.message}`);
+  } catch (pushErr) {
+    console.warn('Push-запит не вдався (не критично):', pushErr);
   }
-
-  await showAlertDialog(debugLines.join('\n'), 'Діагностика пушу');
 
   try {
     await showAlertDialog('Завдання успішно створено.', 'Готово');
@@ -1201,6 +1152,24 @@ document.getElementById('use-template-btn').addEventListener('click', async () =
       });
       const data = await res.json();
       if (!data.success) { errEl.textContent = data.error || 'Помилка'; errEl.className = 'alert err show'; return; }
+
+      // Той самий пуш, що і при звичайному створенні (п. "Зберегти") — тут раніше
+      // взагалі не викликався, бо це окрема кнопка з окремим ендпоінтом створення.
+      let newTaskId = data.task && data.task.id;
+      if (!newTaskId) {
+        const qs = new URLSearchParams({ object_id: objectId, shopper_id: shopperId });
+        const listRes = await fetch(`${API_BASE}/ga/admin/tasks?${qs.toString()}`, { headers: authHeaders() });
+        const listData = await listRes.json();
+        const freshTasks = (listData.tasks || []).slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        newTaskId = freshTasks[0] && freshTasks[0].id;
+      }
+      if (newTaskId) {
+        await fetch(`${API_BASE}/ga/admin/send-task-push`, {
+          method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ task_id: newTaskId })
+        });
+      }
+
       document.getElementById('mini-form-slot').innerHTML = '';
       await showAlertDialog('Завдання створено з шаблону.', 'Готово');
       showListView();
@@ -1229,6 +1198,6 @@ document.getElementById('logout-btn').addEventListener('click', () => {
 
 init();
 </script>
-<div style="position:fixed;bottom:6px;right:10px;font-size:10px;color:var(--muted2);z-index:9999;pointer-events:none">v2026-08-30-17:15</div>
+<div style="position:fixed;bottom:6px;right:10px;font-size:10px;color:var(--muted2);z-index:9999;pointer-events:none">v2026-08-30-17:35</div>
 </body>
 </html>
