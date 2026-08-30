@@ -759,8 +759,50 @@ function hubRow(kind, title, sub, done, onClick, blocked = false, isPrimary = fa
   return card;
 }
 
-document.getElementById('btn-hub-submit').addEventListener('click', async () => {
+async function doSubmit(force) {
   const btn = document.getElementById('btn-hub-submit');
+  const alertEl = document.getElementById('hub-alert');
+  alertEl.classList.remove('show');
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading-spin"></span>';
+
+  const { data } = await api('/ga/shopper/submit', {
+    method: 'POST',
+    body: { submission_id: State.currentSubmissionId, force }
+  });
+
+  btn.disabled = false;
+  btn.innerHTML = 'Відправити на перевірку';
+
+  if (data.success) {
+    clearSession();
+    Router.show('success');
+  } else if (data.missing) {
+    showIncompleteModal(data.missing);
+  } else {
+    alertEl.textContent = data.error || 'Сталася помилка';
+    alertEl.className = 'fm-alert show err';
+  }
+}
+
+function showIncompleteModal(missing) {
+  const rows = [];
+  if (missing.photos.length) rows.push(`<div>📷 Фото: не вистачає ${missing.photos.length} шт.</div>`);
+  if (missing.audio.length) rows.push(`<div>🎙 Аудіо: не записано ${missing.audio.length} шт.</div>`);
+  if (missing.criteria.length) rows.push(`<div>📋 Анкета: не відповіли на ${missing.criteria.length} питань.</div>`);
+  document.getElementById('incomplete-modal-list').innerHTML = rows.join('');
+  document.getElementById('incomplete-modal-overlay').style.display = 'flex';
+}
+document.getElementById('btn-incomplete-cancel').addEventListener('click', () => {
+  document.getElementById('incomplete-modal-overlay').style.display = 'none';
+});
+document.getElementById('btn-incomplete-confirm').addEventListener('click', () => {
+  document.getElementById('incomplete-modal-overlay').style.display = 'none';
+  doSubmit(true);
+});
+
+document.getElementById('btn-hub-submit').addEventListener('click', async () => {
   const alertEl = document.getElementById('hub-alert');
   alertEl.classList.remove('show');
 
@@ -777,31 +819,7 @@ document.getElementById('btn-hub-submit').addEventListener('click', async () => 
     return;
   }
 
-  btn.disabled = true;
-  btn.innerHTML = '<span class="loading-spin"></span>';
-
-  const { data } = await api('/ga/shopper/submit', {
-    method: 'POST',
-    body: { submission_id: State.currentSubmissionId }
-  });
-
-  btn.disabled = false;
-  btn.innerHTML = 'Відправити на перевірку';
-
-  if (data.success) {
-    clearSession();
-    Router.show('success');
-  } else if (data.missing) {
-    const parts = [];
-    if (data.missing.photos.length) parts.push(`фото (${data.missing.photos.length})`);
-    if (data.missing.audio.length) parts.push(`аудіо (${data.missing.audio.length})`);
-    if (data.missing.criteria.length) parts.push(`анкета (${data.missing.criteria.length} питань)`);
-    alertEl.textContent = `Не все заповнено: ${parts.join(', ')}. Заповніть пункти позначені «Нове» вище.`;
-    alertEl.className = 'fm-alert show warn';
-  } else {
-    alertEl.textContent = data.error || 'Сталася помилка';
-    alertEl.className = 'fm-alert show err';
-  }
+  doSubmit(false);
 });
 
 // ─── SCREEN: PHOTO ────────────────────────────────────────
