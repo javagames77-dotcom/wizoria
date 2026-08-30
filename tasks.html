@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ВЕРСІЯ ФАЙЛУ: 2026-08-30 15:35 — push-виклик 1в1 у стилі решти POST-запитів, без окремої IIFE-обгортки -->
+<!-- ВЕРСІЯ ФАЙЛУ: 2026-08-30 15:50 — окрема кнопка "Тест" пушу зверху списку Завдання, з видимим результатом -->
 <html lang="uk">
 <head>
 <meta charset="UTF-8">
@@ -174,6 +174,13 @@ td[tabindex]:focus{box-shadow:inset 0 0 0 2px var(--accent);border-radius:3px}
           <div class="page-sub">Усі завдання системи</div>
         </div>
         <button class="btn-primary" id="new-task-btn"><i class="ti ti-plus"></i>Нове завдання</button>
+      </div>
+
+      <div style="background:var(--warn-bg);border:1px solid var(--warn-border);border-radius:10px;padding:12px;margin-bottom:16px;display:flex;gap:8px;align-items:center">
+        <span style="font-size:12px;color:var(--warn-text)">Тест пушу — id завдання:</span>
+        <input type="number" id="push-test-task-id" value="22" style="width:80px;height:30px;border:1px solid var(--border);border-radius:6px;padding:0 8px;font-size:12px">
+        <button class="btn-outline" id="push-test-btn" style="height:30px;padding:0 12px;font-size:12px">Тест</button>
+        <span id="push-test-result" style="font-size:11px;color:var(--muted);font-family:monospace"></span>
       </div>
 
       <div class="stat-grid">
@@ -865,6 +872,23 @@ async function showFormView() {
 }
 
 document.getElementById('new-task-btn').addEventListener('click', showFormView);
+
+document.getElementById('push-test-btn').addEventListener('click', async () => {
+  const resultEl = document.getElementById('push-test-result');
+  const taskId = document.getElementById('push-test-task-id').value;
+  resultEl.textContent = '...';
+  try {
+    const r = await fetch(`${API_BASE}/ga/admin/send-task-push`, {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ task_id: Number(taskId) })
+    });
+    const text = await r.text();
+    resultEl.textContent = `HTTP ${r.status}: ${text}`;
+  } catch (err) {
+    resultEl.textContent = `ПОМИЛКА МЕРЕЖІ: ${err.message}`;
+  }
+});
 document.getElementById('cancel-task-btn').addEventListener('click', showListView);
 
 // --- Chips ---
@@ -1179,6 +1203,6 @@ document.getElementById('logout-btn').addEventListener('click', () => {
 
 init();
 </script>
-<div style="position:fixed;bottom:6px;right:10px;font-size:10px;color:var(--muted2);z-index:9999;pointer-events:none">v2026-08-30-15:35</div>
+<div style="position:fixed;bottom:6px;right:10px;font-size:10px;color:var(--muted2);z-index:9999;pointer-events:none">v2026-08-30-15:50</div>
 </body>
 </html>
