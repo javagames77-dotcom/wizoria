@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════
 // GhostAudit / Wizoria — Shopper PWA
-// ВЕРСІЯ ФАЙЛУ: 2026-08-30 18:00 — клік "назад" в анкеті більше не скидає відповіді (п.41)
+// ВЕРСІЯ ФАЙЛУ: 2026-08-30 18:30 — кнопка "Пропустити питання" для позначених адміном питань (п.42)
 // ═══════════════════════════════════════════════════════════
 
 const API_BASE = 'https://primary-production-4b93e.up.railway.app/webhook';
@@ -1183,6 +1183,25 @@ const Quest = {
     }
     btn.textContent = '';
     btn.innerHTML = (q.idx === visible.length - 1) ? 'Завершити <i class="ti ti-check" aria-hidden="true"></i>' : 'Далі <i class="ti ti-arrow-right" aria-hidden="true"></i>';
+
+    // Кнопку пропуску показуємо тільки якщо адмін позначив саме це питання як
+    // "можна пропустити" — рішення, де саме дозволити пропуск, приймає адмін (п.42).
+    document.getElementById('btn-q-skip').style.display = c.is_skippable ? 'block' : 'none';
+  },
+
+  skip() {
+    // Свідомий пропуск: відповідь НЕ записується взагалі (не порожній рядок,
+    // не false) — далі по конвеєру (перевірка повноти, AI) це трактується
+    // так само, як "питання не було", а не як "відповіли пусткою".
+    delete State.quest.answers[this._currentCriterionId()];
+    State.quest.idx++;
+    this.renderCurrent();
+  },
+
+  _currentCriterionId() {
+    const visible = this.visibleCriteria();
+    const c = visible[State.quest.idx];
+    return c ? c.id : null;
   },
 
   next() {
@@ -1228,6 +1247,8 @@ document.getElementById('btn-q-next').addEventListener('click', () => {
   if (State.quest.idx >= visible.length - 1) Quest.finish();
   else Quest.next();
 });
+
+document.getElementById('btn-q-skip').addEventListener('click', () => Quest.skip());
 
 // ─── UTILS ────────────────────────────────────────────────
 function escapeHtml(str) {
