@@ -533,7 +533,7 @@ function renderDetail(){
         <div style="font-size:11px;color:var(--muted);margin-top:2px;display:flex;align-items:center;gap:6px">
           ${escapeHtml(s.shopper_name)} · ${s.submitted_at ? new Date(s.submitted_at).toLocaleDateString('uk-UA') : '—'} · ${s.submitted_at ? new Date(s.submitted_at).toLocaleTimeString('uk-UA',{hour:'2-digit',minute:'2-digit'}) : '—'}
           ${s.geo_lat !== null && s.geo_lat !== undefined
-            ? `<span onclick="openGeoModal()" style="display:flex;align-items:center;gap:4px;color:var(--accent);cursor:pointer;text-decoration:underline;text-underline-offset:2px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M12 21c-4.5-4.5-7-8.4-7-12a7 7 0 0 1 14 0c0 3.6-2.5 7.5-7 12z"/><circle cx="12" cy="9" r="2.3"/></svg> Геопозиція</span>`
+            ? `<span onclick="openGeoModal()" style="display:flex;align-items:center;gap:4px;color:var(--accent);cursor:pointer;text-decoration:underline;text-underline-offset:2px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M12 21c-4.5-4.5-7-8.4-7-12a7 7 0 0 1 14 0c0 3.6-2.5 7.5-7 12z"/><circle cx="12" cy="9" r="2.3"/></svg> Геопозиція${(s.distance_to_object_m !== null && s.distance_to_object_m !== undefined && s.geo_radius_m !== null && s.distance_to_object_m > s.geo_radius_m) ? ' <span style="color:var(--danger);font-weight:700" title="Поза радіусом геолокації об\'єкту">&#33;</span>' : ''}</span>`
             : `<span style="display:flex;align-items:center;gap:3px;color:var(--muted)"><i class="ti ti-map-pin-off" style="font-size:12px"></i> немає даних</span>`}
         </div>
       </div>
@@ -570,7 +570,12 @@ function openGeoModal() {
   const s = currentDetail.submission;
   if (s.geo_lat === null || s.geo_lat === undefined) return;
   const distTxt = s.distance_to_object_m === null || s.distance_to_object_m === undefined ? '—' : `~${s.distance_to_object_m} м від об'єкту`;
-  document.getElementById('geoModalInfo').textContent = distTxt;
+  const radiusTxt = s.geo_radius_m !== null && s.geo_radius_m !== undefined ? ` (радіус геолокації: ${s.geo_radius_m} м)` : '';
+  const outOfRadius = s.distance_to_object_m !== null && s.distance_to_object_m !== undefined
+    && s.geo_radius_m !== null && s.geo_radius_m !== undefined
+    && s.distance_to_object_m > s.geo_radius_m;
+  document.getElementById('geoModalInfo').innerHTML = distTxt + radiusTxt
+    + (outOfRadius ? ' <span style="color:var(--danger);font-weight:600">— поза радіусом &#33;</span>' : '');
   document.getElementById('geoModalOverlay').style.display = 'flex';
 
   if (typeof L === 'undefined') return;
