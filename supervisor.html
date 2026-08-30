@@ -570,8 +570,7 @@ function openGeoModal() {
   const s = currentDetail.submission;
   if (s.geo_lat === null || s.geo_lat === undefined) return;
   const distTxt = s.distance_to_object_m === null || s.distance_to_object_m === undefined ? '—' : `~${s.distance_to_object_m} м від об'єкту`;
-  const methodTxt = s.geo_accuracy_m !== null && s.geo_accuracy_m !== undefined ? `реальні координати, ±${s.geo_accuracy_m} м` : 'орієнтовні (позиція не визначена, показано адресу об\'єкту)';
-  document.getElementById('geoModalInfo').textContent = `${distTxt} · ${methodTxt}`;
+  document.getElementById('geoModalInfo').textContent = distTxt;
   document.getElementById('geoModalOverlay').style.display = 'flex';
 
   if (typeof L === 'undefined') return;
