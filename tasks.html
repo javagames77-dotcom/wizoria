@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ВЕРСІЯ ФАЙЛУ: 2026-08-30 14:40 — виклик /ga/admin/send-task-push після створення завдання -->
+<!-- ВЕРСІЯ ФАЙЛУ: 2026-08-30 15:05 — стійкий пошук task_id для пуша (кілька можливих полів) -->
 <html lang="uk">
 <head>
 <meta charset="UTF-8">
@@ -1069,11 +1069,17 @@ document.getElementById('save-task-btn').addEventListener('click', async () => {
   // Збереження точно успішне — далі йде лише UI-навігація, окремо від мережевої помилки
   // Пуш тепер шлеться окремим незалежним запитом (не всередині ga-admin-tasks) —
   // так надійніше, не залежить від паралельних гілок одного execution.
-  if (saveResult.task && saveResult.task.id) {
+  // Не покладаємось на одну конкретну форму відповіді — пробуємо всі розумні варіанти,
+  // щоб розбіжність у назві поля не змогла тихо пропустити виклик.
+  const newTaskId = (saveResult.task && saveResult.task.id) || saveResult.task_id || saveResult.id || null;
+  if (newTaskId) {
     fetch(`${API_BASE}/ga/admin/send-task-push`, {
       method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ task_id: saveResult.task.id })
-    }).catch(err => console.warn('Push-запит не вдався (не критично):', err));
+      body: JSON.stringify({ task_id: newTaskId })
+    }).then(r => console.log('send-task-push status:', r.status))
+      .catch(err => console.warn('Push-запит не вдався (не критично):', err));
+  } else {
+    console.warn('Не вдалося визначити id нового завдання для пуша:', saveResult);
   }
   try {
     await showAlertDialog('Завдання успішно створено.', 'Готово');
@@ -1167,6 +1173,6 @@ document.getElementById('logout-btn').addEventListener('click', () => {
 
 init();
 </script>
-<div style="position:fixed;bottom:6px;right:10px;font-size:10px;color:var(--muted2);z-index:9999;pointer-events:none">v2026-08-30-14:40</div>
+<div style="position:fixed;bottom:6px;right:10px;font-size:10px;color:var(--muted2);z-index:9999;pointer-events:none">v2026-08-30-15:05</div>
 </body>
 </html>
