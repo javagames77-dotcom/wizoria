@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ВЕРСІЯ ФАЙЛУ: 2026-08-30 16:20 — подвійна страховка: task.id з відповіді АБО зі списку завдань -->
+<!-- ВЕРСІЯ ФАЙЛУ: 2026-08-30 16:40 — результат автопушу тепер видно в тій самій панелі "Тест", не тільки в консолі -->
 <html lang="uk">
 <head>
 <meta charset="UTF-8">
@@ -1094,9 +1094,12 @@ document.getElementById('save-task-btn').addEventListener('click', async () => {
   // Пуш тепер шлеться окремим незалежним запитом (не всередині ga-admin-tasks).
   // Спочатку пробуємо прямо з відповіді створення; якщо там немає task.id —
   // беремо через перевірений список завдань, щоб push все одно пішов.
+  // Результат тепер видно прямо на екрані, а не тільки в консолі.
+  const pushDebugEl = document.getElementById('push-test-result');
   let newTaskId = saveResult.task && saveResult.task.id;
+  let pushDebugPrefix = 'з відповіді створення';
   if (!newTaskId) {
-    console.warn('saveResult.task.id відсутній, шукаю через список завдань:', saveResult);
+    pushDebugPrefix = 'через список завдань (task.id був відсутній)';
     const qs = new URLSearchParams({ object_id: objectId, shopper_id: shopperId });
     const listRes = await fetch(`${API_BASE}/ga/admin/tasks?${qs.toString()}`, { headers: authHeaders() });
     const listData = await listRes.json();
@@ -1109,8 +1112,11 @@ document.getElementById('save-task-btn').addEventListener('click', async () => {
       headers: { ...authHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ task_id: newTaskId })
     });
-    console.log('send-task-push status:', pushRes.status);
+    const pushText = await pushRes.text();
+    if (pushDebugEl) pushDebugEl.textContent = `автопуш (id=${newTaskId}, ${pushDebugPrefix}): HTTP ${pushRes.status}: ${pushText}`;
+    console.log('send-task-push:', pushRes.status, pushText);
   } else {
+    if (pushDebugEl) pushDebugEl.textContent = 'автопуш: не вдалося визначити id завдання жодним способом';
     console.warn('Не вдалося визначити id завдання для пуша жодним способом');
   }
 
@@ -1206,6 +1212,6 @@ document.getElementById('logout-btn').addEventListener('click', () => {
 
 init();
 </script>
-<div style="position:fixed;bottom:6px;right:10px;font-size:10px;color:var(--muted2);z-index:9999;pointer-events:none">v2026-08-30-16:20</div>
+<div style="position:fixed;bottom:6px;right:10px;font-size:10px;color:var(--muted2);z-index:9999;pointer-events:none">v2026-08-30-16:40</div>
 </body>
 </html>
