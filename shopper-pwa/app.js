@@ -1,5 +1,6 @@
 // ═══════════════════════════════════════════════════════════
 // GhostAudit / Wizoria — Shopper PWA
+// ВЕРСІЯ ФАЙЛУ: 2026-08-30 12:40 — інструкція при відмові в доступі до мікрофону (п.18)
 // ═══════════════════════════════════════════════════════════
 
 const API_BASE = 'https://primary-production-4b93e.up.railway.app/webhook';
@@ -990,8 +991,21 @@ const Audio = {
         document.getElementById('rec-timer').textContent = `${formatMMSS(secs)} / мін. ${formatMMSS(min)}`;
       }, 1000);
     } catch (e) {
-      document.getElementById('audio-alert').textContent = 'Немає доступу до мікрофону: ' + e.message;
-      document.getElementById('audio-alert').className = 'fm-alert show err';
+      const alertEl = document.getElementById('audio-alert');
+      if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
+        // Браузер один раз запам'ятовує відмову і більше сам ніколи не перепитує —
+        // без явних дій самого гостя в налаштуваннях браузера доступ не повернути.
+        // Раніше тут була лише технічна помилка без жодного виходу з ситуації.
+        alertEl.innerHTML = 'Доступ до мікрофону заблоковано в браузері. Щоб виправити: '
+          + 'натисніть на значок замка/інформації <b>зліва від адресного рядка</b> → '
+          + '<b>Дозволи сайту</b> → <b>Мікрофон</b> → <b>Дозволити</b> → після цього '
+          + '<b>перезавантажте сторінку</b> і спробуйте ще раз.';
+      } else if (e.name === 'NotFoundError') {
+        alertEl.textContent = 'На цьому пристрої не знайдено мікрофон.';
+      } else {
+        alertEl.textContent = 'Немає доступу до мікрофону: ' + e.message;
+      }
+      alertEl.className = 'fm-alert show err';
     }
   },
 
