@@ -350,6 +350,9 @@ const Objects = {
         return;
       }
       State.objects = data.objects;
+      // Активні (є що робити) — завжди зверху, здані — знизу. Без цього другий/новий
+      // завданий об'єкт міг опинитись нижче вже зданого і "загубитись" у списку.
+      State.objects.sort((a, b) => (a.all_done === b.all_done) ? 0 : (a.all_done ? 1 : -1));
       this.render();
     } catch (e) {
       list.innerHTML = `<div class="fm-alert show err">Немає з'єднання з сервером: ${escapeHtml(e.message)}</div>`;
@@ -413,6 +416,11 @@ const Tasks = {
         return;
       }
       State.tasks = data.tasks;
+      // Та сама логіка, що й у списку об'єктів: активні завдання зверху, здані знизу.
+      State.tasks.sort((a, b) => {
+        const aDone = a.status === 'submitted', bDone = b.status === 'submitted';
+        return (aDone === bDone) ? 0 : (aDone ? 1 : -1);
+      });
       if (data.object_progress) {
         document.getElementById('tasks-progress').textContent =
           `${data.object_progress.completed_tasks}/${data.object_progress.total_tasks} виконано`;
