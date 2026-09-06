@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- ВЕРСІЯ ФАЙЛУ: 2026-09-02 — примусове очищення поля пошуку від автозаповнення Safari (п.2) -->
 <!-- ВЕРСІЯ ФАЙЛУ: 2026-08-30 20:50 — поле "Кінотеатр" додано в картку профілю покупця (п.38) -->
 <!-- ВЕРСІЯ ФАЙЛУ: 2026-08-30 19:20 — додано колонку "Кінотеатр" (п.38) -->
 <html lang="uk">
@@ -817,6 +818,15 @@ document.getElementById('pd-back-btn').addEventListener('click', backToList);
 async function init() {
   token = localStorage.getItem('ga_token');
   if (!token) { document.getElementById('auth-gate').style.display = 'block'; return; }
+  // Safari іноді ігнорує autocomplete="off" і все одно підставляє збережений логін
+  // у це поле. Реальний пошук це не зачіпає (currentUsersSearch завжди '' на старті),
+  // але візуально це виглядає як активний фільтр — тому жорстко чистимо поле самі,
+  // а не покладаємось на те, що браузер послухає підказку.
+  const searchEl = document.getElementById('users-search');
+  if (searchEl) searchEl.value = '';
+  // Деякі версії Safari підставляють збережений логін ще пізніше, вже після
+  // виконання цього скрипта — тому чистимо ще раз з невеликою затримкою.
+  setTimeout(() => { if (searchEl) searchEl.value = ''; }, 300);
   try {
     await loadObjectsList();
     await loadSupervisorAssignmentsAll();
@@ -833,6 +843,14 @@ document.getElementById('logout-btn').addEventListener('click', () => {
 });
 
 init();
+
+// Safari може повторно підставити збережений логін при поверненні на сторінку
+// через кнопку "назад" (bfcache) — прибираємо це і в такому випадку теж.
+window.addEventListener('pageshow', () => {
+  const searchEl = document.getElementById('users-search');
+  if (searchEl) searchEl.value = '';
+});
+
 </script>
 </body>
 </html>
