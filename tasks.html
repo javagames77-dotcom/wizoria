@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ВЕРСІЯ ФАЙЛУ: 2026-08-30 17:35 — знайдено справжню причину: створення з шаблону йшло іншим шляхом, минаючи пуш. Виправлено там само, прибрано тестові елементи -->
+<!-- ВЕРСІЯ ФАЙЛУ: 2026-09-06 — список "Секція" у Фото/Аудіо тепер підтягується з реальних анкет, а не захардкоджений (п.1, заодно закриває корінь п.18) -->
 <html lang="uk">
 <head>
 <meta charset="UTF-8">
@@ -358,14 +358,38 @@ function showAlertDialog(message, title = 'Повідомлення') {
 }
 
 // Порядок секцій — за реальним маршрутом відвідувача кінотеатру (п.13 правок):
-// Вхід → Каса → Бар → Зал → Туалет → Вихід. Раніше порядку не було взагалі (як додали, так і йшло).
-const SECTION_NAMES = { vhid: 'Вхід', kasa: 'Каса', bar: 'Бар', zal: 'Зал', tualet: 'Туалет', vyhid: 'Вихід' };
+// Вхід → Каса → Бар → Зал → Туалет → Вихід. Це базові 6 назв, лишаємо як є —
+// вони й далі задають фізичний порядок сортування для цих секцій.
+// П.1: раніше цей список був повністю захардкоджений і не знав про реальні
+// анкети з довільними section_key (напр. "kasa_cck", "bar_cocktail") — через
+// це вони показувались просто сирим ключем замість людської назви, і саме
+// це було коренем п.18 (AI не оцінював "Кіномаркет"). Тепер SECTION_NAMES —
+// змінний, і доповнюється реальними назвами анкет через loadSectionsFromQuestionnaires().
+let SECTION_NAMES = { vhid: 'Вхід', kasa: 'Каса', bar: 'Бар', zal: 'Зал', tualet: 'Туалет', vyhid: 'Вихід' };
 const SECTION_ORDER = Object.keys(SECTION_NAMES);
 const SECTION_ALIASES = { cinema_hall: 'zal' }; // деякі анкети використовують довільний ключ замість стандартного 'zal'
 function sectionRank(key) {
   const normalized = SECTION_ALIASES[key] || key;
   const i = SECTION_ORDER.indexOf(normalized);
   return i === -1 ? SECTION_ORDER.length : i;
+}
+
+// Підтягує реальний список секцій з бази анкет — того самого ендпоінта, що вже
+// використовується для вибору "Анкета" в цій формі. Кожна анкета з section_key,
+// якого ще немає у базовому списку вище, додає свою людську назву (title анкети).
+// Викликається один раз при відкритті форми (loadFormLookups) — не змінює базові
+// 6 назв маршруту, тільки розширює список тим, чого там раніше не було.
+async function loadSectionsFromQuestionnaires() {
+  try {
+    const qRes = await fetch(`${API_BASE}/ga/admin/questionnaires`, { headers: authHeaders() });
+    const qData = await qRes.json();
+    (qData.questionnaires || []).forEach(q => {
+      const normalized = SECTION_ALIASES[q.section_key] || q.section_key;
+      if (!SECTION_NAMES[normalized]) SECTION_NAMES[q.section_key] = q.title;
+    });
+  } catch (e) {
+    // не критично — просто лишаться базові 6 + сирі ключі як фолбек, як і раніше
+  }
 }
 let objectsList = [];
 let shoppersList = [];
@@ -773,6 +797,7 @@ async function deleteTask(taskId) {
 
 // ============ FORM VIEW ============
 async function loadFormLookups() {
+  await loadSectionsFromQuestionnaires();
   const [objRes, shopRes] = await Promise.all([
     fetch(`${API_BASE}/ga/admin/objects`, { headers: authHeaders() }),
     fetch(`${API_BASE}/ga/admin/users?role=shopper`, { headers: authHeaders() })
