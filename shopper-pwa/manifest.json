@@ -1,6 +1,6 @@
 {
-  "name": "Wizoria — Тайний покупець",
-  "short_name": "Wizoria Shopper",
+  "name": "CinemaCheck — Таємний покупець",
+  "short_name": "CinemaCheck",
   "description": "Додаток для виконання завдань тайного покупця",
   "start_url": "./index.html",
   "scope": "./",
