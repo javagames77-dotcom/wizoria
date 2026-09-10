@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ВЕРСІЯ ФАЙЛУ: 2026-09-06 — список "Секція" у Фото/Аудіо тепер підтягується з реальних анкет, а не захардкоджений (п.1, заодно закриває корінь п.18) -->
+<!-- ВЕРСІЯ ФАЙЛУ: 2026-09-10 — секція тепер видна і в формі редагування завдання (раніше показувалась тільки при створенні) -->
 <html lang="uk">
 <head>
 <meta charset="UTF-8">
@@ -568,14 +568,14 @@ async function reloadEditView() {
   (data.photo_requirements || []).forEach(r => {
     wrap.insertAdjacentHTML('beforeend', `
       <div class="req-chip"><i class="ti ti-camera type-icon" style="color:var(--accent)"></i>
-        <span class="chip-title">${r.title}</span><span class="chip-meta">${r.required_count} фото</span>
+        <span class="chip-title">${r.title}</span><span class="chip-meta">${r.required_count} фото · ${SECTION_NAMES[r.section_key] || r.section_key || '—'}</span>
         <span class="chip-remove" data-kind="photo" data-id="${r.id}"><i class="ti ti-x"></i></span></div>
     `);
   });
   (data.audio_requirements || []).forEach(r => {
     wrap.insertAdjacentHTML('beforeend', `
       <div class="req-chip"><i class="ti ti-microphone type-icon" style="color:var(--warn-text)"></i>
-        <span class="chip-title">${r.title}</span><span class="chip-meta">мін. ${r.min_duration_sec} сек</span>
+        <span class="chip-title">${r.title}</span><span class="chip-meta">мін. ${r.min_duration_sec} сек · ${SECTION_NAMES[r.section_key] || r.section_key || '—'}</span>
         <span class="chip-remove" data-kind="audio" data-id="${r.id}"><i class="ti ti-x"></i></span></div>
     `);
   });
@@ -1223,6 +1223,6 @@ document.getElementById('logout-btn').addEventListener('click', () => {
 
 init();
 </script>
-<div style="position:fixed;bottom:6px;right:10px;font-size:10px;color:var(--muted2);z-index:9999;pointer-events:none">v2026-09-06</div>
+<div style="position:fixed;bottom:6px;right:10px;font-size:10px;color:var(--muted2);z-index:9999;pointer-events:none">v2026-09-10</div>
 </body>
 </html>
