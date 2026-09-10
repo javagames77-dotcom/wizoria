@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- ВЕРСІЯ ФАЙЛУ: 2026-09-10 — вибір фото при реєстрації тепер відкриває стандартний системний вибір (камера/галерея) замість примусової фронтальної камери, яка на частині Android/Chrome не спрацьовувала -->
 <html lang="uk">
 <head>
 <meta charset="UTF-8">
@@ -179,7 +180,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
             <div class="icon">📷</div>
             <div class="hint">Зробити / обрати фото</div>
           </div>
-          <input type="file" id="photo-input" accept="image/jpeg,image/png" capture="user" style="display:none">
+          <input type="file" id="photo-input" accept="image/*" style="display:none">
           <div class="field-err" id="err-photo"></div>
 
           <div class="btn-row">
