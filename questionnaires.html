@@ -214,6 +214,17 @@ const SECTION_ICONS = { kasa: 'ti-building-bank', bar: 'ti-glass', tualet: 'ti-d
 const SECTION_NAMES = { kasa: 'Каса', bar: 'Бар', tualet: 'Туалет', zal: 'Зал', vhid: 'Вхід', vyhid: 'Вихід' };
 const ANSWER_TYPE_LABELS = { yes_no: 'Так / Ні', scale_1_5: 'Шкала 1–5', text: 'Текст' };
 
+// Той самий маршрут, що вже застосовано в Завданнях (Вхід→Каса→Бар→Зал→Туалет→Вихід) —
+// раніше список анкет взагалі не сортувався (йшов у порядку id), клієнт окремо
+// звернув на це увагу. Аліас лише для порядку сортування, не для приховування анкет.
+const SECTION_ORDER = Object.keys(SECTION_NAMES);
+const SECTION_ALIASES = { cinema_hall: 'zal' };
+function sectionRank(key) {
+  const normalized = SECTION_ALIASES[key] || key;
+  const i = SECTION_ORDER.indexOf(normalized);
+  return i === -1 ? SECTION_ORDER.length : i;
+}
+
 let questionnaires = [];
 let activeQuestionnaireId = null;
 let criteria = [];
@@ -226,7 +237,7 @@ async function loadObjectAndQuestionnaires() {
 async function loadQuestionnaires() {
   const qRes = await fetch(`${API_BASE}/ga/admin/questionnaires`, { headers: authHeaders() });
   const qData = await qRes.json();
-  questionnaires = qData.questionnaires || [];
+  questionnaires = (qData.questionnaires || []).slice().sort((a, b) => sectionRank(a.section_key) - sectionRank(b.section_key));
 
   document.getElementById('q-mini-form-slot').innerHTML = '';
   renderSectionTabs();
