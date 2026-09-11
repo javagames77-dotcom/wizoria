@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ВЕРСІЯ ФАЙЛУ: 2026-09-10 — секція тепер видна і в формі редагування завдання (раніше показувалась тільки при створенні) -->
+<!-- ВЕРСІЯ ФАЙЛУ: 2026-09-11 — виправлено баг: "Кінозал" (cinema_hall) губився через аліас на "Зал", тепер показується окремим пунктом (п.1, продовження) -->
 <html lang="uk">
 <head>
 <meta charset="UTF-8">
@@ -384,8 +384,12 @@ async function loadSectionsFromQuestionnaires() {
     const qRes = await fetch(`${API_BASE}/ga/admin/questionnaires`, { headers: authHeaders() });
     const qData = await qRes.json();
     (qData.questionnaires || []).forEach(q => {
-      const normalized = SECTION_ALIASES[q.section_key] || q.section_key;
-      if (!SECTION_NAMES[normalized]) SECTION_NAMES[q.section_key] = q.title;
+      // ВАЖЛИВО: перевіряємо саме сирий q.section_key, а не через SECTION_ALIASES.
+      // Аліас (напр. cinema_hall → zal) потрібен лише для сортування за маршрутом
+      // (sectionRank), а не для того, щоб ховати реальну анкету "Кінозал" під
+      // виглядом уже наявної "Зал" — інакше вибрати саме "Кінозал" неможливо,
+      // і фото/аудіо ніколи не зіллється з реальною анкетою (баг, знайдений клієнтом).
+      if (!SECTION_NAMES[q.section_key]) SECTION_NAMES[q.section_key] = q.title;
     });
   } catch (e) {
     // не критично — просто лишаться базові 6 + сирі ключі як фолбек, як і раніше
@@ -568,14 +572,14 @@ async function reloadEditView() {
   (data.photo_requirements || []).forEach(r => {
     wrap.insertAdjacentHTML('beforeend', `
       <div class="req-chip"><i class="ti ti-camera type-icon" style="color:var(--accent)"></i>
-        <span class="chip-title">${r.title}</span><span class="chip-meta">${r.required_count} фото · ${SECTION_NAMES[r.section_key] || r.section_key || '—'}</span>
+        <span class="chip-title">${r.title}</span><span class="chip-meta">${r.required_count} фото</span>
         <span class="chip-remove" data-kind="photo" data-id="${r.id}"><i class="ti ti-x"></i></span></div>
     `);
   });
   (data.audio_requirements || []).forEach(r => {
     wrap.insertAdjacentHTML('beforeend', `
       <div class="req-chip"><i class="ti ti-microphone type-icon" style="color:var(--warn-text)"></i>
-        <span class="chip-title">${r.title}</span><span class="chip-meta">мін. ${r.min_duration_sec} сек · ${SECTION_NAMES[r.section_key] || r.section_key || '—'}</span>
+        <span class="chip-title">${r.title}</span><span class="chip-meta">мін. ${r.min_duration_sec} сек</span>
         <span class="chip-remove" data-kind="audio" data-id="${r.id}"><i class="ti ti-x"></i></span></div>
     `);
   });
@@ -1223,6 +1227,6 @@ document.getElementById('logout-btn').addEventListener('click', () => {
 
 init();
 </script>
-<div style="position:fixed;bottom:6px;right:10px;font-size:10px;color:var(--muted2);z-index:9999;pointer-events:none">v2026-09-10</div>
+<div style="position:fixed;bottom:6px;right:10px;font-size:10px;color:var(--muted2);z-index:9999;pointer-events:none">v2026-08-30-17:35</div>
 </body>
 </html>
