@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ВЕРСІЯ ФАЙЛУ: 2026-09-11 — список анкет тепер сортується за маршрутом Вхід→Каса→Бар→Зал→Туалет→Вихід -->
+<!-- ВЕРСІЯ ФАЙЛУ: 2026-09-13 — виправлено: сортування губилось після створення нової анкети (друге місце присвоєння списку, забули застосувати сорт) -->
 <html lang="uk">
 <head>
 <meta charset="UTF-8">
@@ -635,7 +635,10 @@ document.getElementById('new-section-btn').addEventListener('click', () => {
       document.getElementById('q-mini-form-slot').innerHTML = '';
       const qRes = await fetch(`${API_BASE}/ga/admin/questionnaires`, { headers: authHeaders() });
       const qData = await qRes.json();
-      questionnaires = qData.questionnaires || [];
+      // Той самий сорт, що і при першому завантаженні (loadQuestionnaires) — тут
+      // раніше забули його застосувати, тому порядок ламався одразу після
+      // створення нової анкети (саме це й спричинило A1).
+      questionnaires = (qData.questionnaires || []).slice().sort((a, b) => sectionRank(a.section_key) - sectionRank(b.section_key));
       await selectQuestionnaire(data.questionnaire.id);
     } catch (err) {
       await showAlertDialog("Немає з'єднання з сервером", 'Помилка');
@@ -661,5 +664,6 @@ document.getElementById('logout-btn').addEventListener('click', () => {
 
 init();
 </script>
+<div style="position:fixed;bottom:6px;right:10px;font-size:10px;color:var(--muted2);z-index:9999;pointer-events:none">v2026-09-13-questionnaires-sort-fix</div>
 </body>
 </html>
