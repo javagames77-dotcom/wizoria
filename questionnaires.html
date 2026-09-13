@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ВЕРСІЯ ФАЙЛУ: 2026-09-13 — виправлено: сортування губилось після створення нової анкети (друге місце присвоєння списку, забули застосувати сорт) -->
+<!-- ВЕРСІЯ ФАЙЛУ: 2026-09-13-v2 — справжня причина: порядок ключів у SECTION_NAMES не відповідав реальному маршруту (був kasa,bar,tualet,zal,vhid,vyhid замість vhid,kasa,bar,zal,tualet,vyhid) -->
 <html lang="uk">
 <head>
 <meta charset="UTF-8">
@@ -212,7 +212,13 @@ function showAlertDialog(message, title = 'Повідомлення') {
 
 // Іконки секцій — 4 підтверджені точно в ТЗ, 2 (вхід/вихід) обрані самостійно (в ТЗ не вказані)
 const SECTION_ICONS = { kasa: 'ti-building-bank', bar: 'ti-glass', tualet: 'ti-door', zal: 'ti-movie', vhid: 'ti-login', vyhid: 'ti-logout' };
-const SECTION_NAMES = { kasa: 'Каса', bar: 'Бар', tualet: 'Туалет', zal: 'Зал', vhid: 'Вхід', vyhid: 'Вихід' };
+// ВИПРАВЛЕНО: порядок ключів у цьому об'єкті раніше не відповідав реальному
+// маршруту (був kasa,bar,tualet,zal,vhid,vyhid — довільний порядок визначення,
+// не пов'язаний з фізичним маршрутом). Через це "Бар" (ранг 1) сортувався
+// РАНІШЕ "Зал"/"Кінозал" (ранг 3) — це і була справжня причина A1, а не
+// відсутність сорту після створення анкети (те виправлення теж лишається,
+// не шкодить, але коренева причина була саме тут).
+const SECTION_NAMES = { vhid: 'Вхід', kasa: 'Каса', bar: 'Бар', zal: 'Зал', tualet: 'Туалет', vyhid: 'Вихід' };
 const ANSWER_TYPE_LABELS = { yes_no: 'Так / Ні', scale_1_5: 'Шкала 1–5', text: 'Текст' };
 
 // Той самий маршрут, що вже застосовано в Завданнях (Вхід→Каса→Бар→Зал→Туалет→Вихід) —
@@ -664,6 +670,6 @@ document.getElementById('logout-btn').addEventListener('click', () => {
 
 init();
 </script>
-<div style="position:fixed;bottom:6px;right:10px;font-size:10px;color:var(--muted2);z-index:9999;pointer-events:none">v2026-09-13-questionnaires-sort-fix</div>
+<div style="position:fixed;bottom:6px;right:10px;font-size:10px;color:var(--muted2);z-index:9999;pointer-events:none">v2026-09-13-v2-questionnaires-sort-fix</div>
 </body>
 </html>
