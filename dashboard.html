@@ -161,7 +161,7 @@ body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var
     <div class="page-head">
       <div>
         <div class="page-title">Dashboard</div>
-        <div class="page-sub" id="page-sub">Wizoria Cinema · <span id="period-text"></span></div>
+        <div class="page-sub" id="page-sub">Всі об'єкти · <span id="period-text"></span></div>
       </div>
       <div class="head-actions">
         <div class="btn-ghost"><i class="ti ti-calendar"></i><span id="period-label"></span></div>
@@ -208,7 +208,6 @@ body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var
 
 <script>
 const API_BASE = 'https://primary-production-4b93e.up.railway.app/webhook';
-const CLIENT_ID = 1; // TODO: перемикач клієнтів, коли їх стане більше одного
 
 const UA_MONTHS = ['Січень','Лютий','Березень','Квітень','Травень','Червень','Липень','Серпень','Вересень','Жовтень','Листопад','Грудень'];
 function currentPeriodLabel() {
@@ -258,7 +257,7 @@ async function loadDashboard() {
 
   let data;
   try {
-    const res = await fetch(`${API_BASE}/ga/admin/dashboard?client_id=${CLIENT_ID}`, {
+    const res = await fetch(`${API_BASE}/ga/admin/dashboard`, {
       headers: { 'Authorization': 'Bearer ' + token }
     });
     if (res.status === 403) {
