@@ -211,7 +211,8 @@ let token = null;
 function authHeaders() { return { 'Authorization': 'Bearer ' + token }; }
 
 const SECTION_NAMES = { kasa: 'Каса', bar: 'Бар', tualet: 'Туалет', zal: 'Зал', vhid: 'Вхід', vyhid: 'Вихід',
-  vhid_ccv: 'Вхід ССВ', kasa_cck: 'Каса ССК', kinobar: 'Кінобар', kinomarket: 'Кіномаркет', cinema_hall: 'Кінозал', wc: 'Вбиральня' };
+  vhid_ccv: 'Вхід ССВ', vhid_cck: 'Вхід ССК', kasa_cck: 'Каса ССК', kasa_ccv: 'Каса ССВ',
+  kinobar: 'Кіномаркет', cinema_hall: 'Кінозал', wc: 'Вбиральня', bar_cocktail: 'Коктейль Бар ССВ', online_bar: 'Онлайн Бар' };
 
 let objectsList = [];
 let activeObjectId = null;
