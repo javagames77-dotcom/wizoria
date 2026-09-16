@@ -347,7 +347,8 @@ async function loadDashboard() {
   const sectionsEmpty = document.getElementById('sections-empty');
   sectionsGrid.innerHTML = '';
 
-  const sectionNames = { kasa: 'Каса', bar: 'Бар', vhid: 'Вхід', vyhid: 'Вихід', zal: 'Зал', tualet: 'Туалет' };
+  const sectionNames = { kasa: 'Каса', bar: 'Бар', vhid: 'Вхід', vyhid: 'Вихід', zal: 'Зал', tualet: 'Туалет',
+    vhid_ccv: 'Вхід ССВ', kasa_cck: 'Каса ССК', kinobar: 'Кінобар', kinomarket: 'Кіномаркет', cinema_hall: 'Кінозал', wc: 'Вбиральня' };
 
   if (!data.weakest_sections || data.weakest_sections.length === 0) {
     sectionsEmpty.style.display = 'block';
