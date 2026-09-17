@@ -55,6 +55,10 @@ body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var
 .card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;box-shadow:var(--card-shadow);overflow:hidden}
 table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}
 th{text-align:left;padding:8px;font-weight:500;font-size:10px;color:var(--muted2);border-bottom:1px solid var(--border)}
+th.sortable{cursor:pointer;user-select:none}
+th.sortable:hover{color:var(--text)}
+th.sortable .sort-arrow{display:inline-block;margin-left:3px;font-size:9px;opacity:.35}
+th.sortable.sort-active .sort-arrow{opacity:1;color:var(--accent)}
 td{padding:10px 8px;border-bottom:1px solid var(--border);color:var(--muted);vertical-align:top}
 tr:last-child td{border-bottom:none}
 .obj-name{font-weight:500;color:var(--black)}
@@ -193,14 +197,14 @@ td[tabindex]:focus{box-shadow:inset 0 0 0 2px var(--accent);border-radius:3px}
         <table>
           <thead>
             <tr>
-              <th style="width:15%">Об'єкт</th>
-              <th style="width:10%">Мережа</th>
-              <th style="width:12%">Покупець</th>
+              <th class="sortable" data-sort-key="object_name" style="width:15%">Об'єкт<span class="sort-arrow"></span></th>
+              <th class="sortable" data-sort-key="client_name" style="width:10%">Мережа<span class="sort-arrow"></span></th>
+              <th class="sortable" data-sort-key="shopper_name" style="width:12%">Покупець<span class="sort-arrow"></span></th>
               <th style="width:8%">Завдання</th>
-              <th style="width:9%">Призначено</th>
-              <th style="width:9%">Дедлайн</th>
-              <th style="width:10%">Здано</th>
-              <th style="width:14%">Статус</th>
+              <th class="sortable" data-sort-key="created_at" style="width:9%">Призначено<span class="sort-arrow"></span></th>
+              <th class="sortable" data-sort-key="deadline" style="width:9%">Дедлайн<span class="sort-arrow"></span></th>
+              <th class="sortable" data-sort-key="submitted_at" style="width:10%">Здано<span class="sort-arrow"></span></th>
+              <th class="sortable" data-sort-key="status" style="width:14%">Статус<span class="sort-arrow"></span></th>
               <th style="width:13%"></th>
             </tr>
           </thead>
@@ -405,20 +409,80 @@ let questionnaireReqs = [];
 // ============ LIST VIEW ============
 let tasksSearchTimer = null;
 let currentTasksSearch = '';
+let allTasks = [];
+
+// --- Сортування таблиці завдань по кліку на заголовок колонки ---
+let tasksSortKey = null;
+let tasksSortDir = 'asc'; // 'asc' | 'desc'
+
+function tasksSortValue(t, key) {
+  switch (key) {
+    case 'object_name': return (t.object_name || '').toLowerCase();
+    case 'client_name': return (t.client_name || '').toLowerCase();
+    case 'shopper_name': return `${t.shopper_first_name || ''} ${t.shopper_last_name || ''}`.trim().toLowerCase();
+    case 'created_at': return t.created_at ? new Date(t.created_at).getTime() : 0;
+    case 'deadline': return t.deadline ? new Date(t.deadline).getTime() : 0;
+    case 'submitted_at': return t.submitted_at ? new Date(t.submitted_at).getTime() : 0;
+    case 'status': return (t.status || '').toLowerCase();
+    default: return '';
+  }
+}
+
+function applyTasksSort() {
+  if (!tasksSortKey) return;
+  const key = tasksSortKey;
+  const dir = tasksSortDir === 'desc' ? -1 : 1;
+  allTasks.sort((a, b) => {
+    const va = tasksSortValue(a, key);
+    const vb = tasksSortValue(b, key);
+    if (va < vb) return -1 * dir;
+    if (va > vb) return 1 * dir;
+    return 0;
+  });
+}
+
+function updateTasksSortHeaderUI() {
+  document.querySelectorAll('#list-view th.sortable').forEach(th => {
+    const active = th.dataset.sortKey === tasksSortKey;
+    th.classList.toggle('sort-active', active);
+    th.querySelector('.sort-arrow').textContent = active ? (tasksSortDir === 'desc' ? '▼' : '▲') : '';
+  });
+}
+
+document.querySelectorAll('#list-view th.sortable').forEach(th => {
+  th.addEventListener('click', () => {
+    const key = th.dataset.sortKey;
+    if (tasksSortKey === key) {
+      tasksSortDir = tasksSortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      tasksSortKey = key;
+      tasksSortDir = 'asc';
+    }
+    applyTasksSort();
+    updateTasksSortHeaderUI();
+    renderTasksTable(currentTasksSearch);
+  });
+});
 
 async function loadTasks(search) {
   const qs = search ? `?search=${encodeURIComponent(search)}` : '';
   const res = await fetch(`${API_BASE}/ga/admin/tasks${qs}`, { headers: authHeaders() });
   const data = await res.json();
-  const tasks = data.tasks || [];
+  allTasks = data.tasks || [];
 
-  const active = tasks.filter(t => t.status === 'assigned' || t.status === 'in_progress').length;
-  const pending = tasks.filter(t => t.status === 'submitted').length;
-  const done = tasks.filter(t => t.status === 'approved').length;
+  const active = allTasks.filter(t => t.status === 'assigned' || t.status === 'in_progress').length;
+  const pending = allTasks.filter(t => t.status === 'submitted').length;
+  const done = allTasks.filter(t => t.status === 'approved').length;
   document.getElementById('stat-active').textContent = active;
   document.getElementById('stat-pending').textContent = pending;
   document.getElementById('stat-done').textContent = done;
 
+  applyTasksSort();
+  renderTasksTable(search);
+}
+
+function renderTasksTable(search) {
+  const tasks = allTasks;
   const tbody = document.getElementById('tasks-tbody');
   const cards = document.getElementById('tasks-cards');
   const empty = document.getElementById('tasks-empty');
