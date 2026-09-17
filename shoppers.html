@@ -64,6 +64,10 @@ body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var
 .card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;box-shadow:var(--card-shadow);overflow:hidden}
 table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}
 th{text-align:left;padding:8px;font-weight:500;font-size:10px;color:var(--muted2);border-bottom:1px solid var(--border)}
+th.sortable{cursor:pointer;user-select:none}
+th.sortable:hover{color:var(--text)}
+th.sortable .sort-arrow{display:inline-block;margin-left:3px;font-size:9px;opacity:.35}
+th.sortable.sort-active .sort-arrow{opacity:1;color:var(--accent)}
 td{padding:9px 8px;border-bottom:1px solid var(--border);color:var(--muted)}
 td[tabindex]{cursor:cell;outline:none}
 td[tabindex]:focus{box-shadow:inset 0 0 0 2px var(--accent);border-radius:3px}
@@ -234,16 +238,16 @@ tr:last-child td{border-bottom:none}
         <table>
           <thead>
             <tr>
-              <th style="width:15%">Ім'я</th>
-              <th style="width:14%">Email</th>
-              <th style="width:9%">Телефон</th>
-              <th style="width:8%">Роль</th>
-              <th style="width:8%">Статус</th>
-              <th style="width:8%">Реєстрація</th>
-              <th style="width:8%">Візит</th>
-              <th style="width:9%">Мережа</th>
-              <th style="width:9%">Кінотеатр</th>
-              <th style="width:12%">Об'єкти</th>
+              <th class="sortable" data-sort-key="name" style="width:15%">Ім'я<span class="sort-arrow"></span></th>
+              <th class="sortable" data-sort-key="email" style="width:14%">Email<span class="sort-arrow"></span></th>
+              <th class="sortable" data-sort-key="phone" style="width:9%">Телефон<span class="sort-arrow"></span></th>
+              <th class="sortable" data-sort-key="role" style="width:8%">Роль<span class="sort-arrow"></span></th>
+              <th class="sortable" data-sort-key="status" style="width:8%">Статус<span class="sort-arrow"></span></th>
+              <th class="sortable" data-sort-key="created_at" style="width:8%">Реєстрація<span class="sort-arrow"></span></th>
+              <th class="sortable" data-sort-key="last_visit_at" style="width:8%">Візит<span class="sort-arrow"></span></th>
+              <th class="sortable" data-sort-key="client_name" style="width:9%">Мережа<span class="sort-arrow"></span></th>
+              <th class="sortable" data-sort-key="object_name" style="width:9%">Кінотеатр<span class="sort-arrow"></span></th>
+              <th class="sortable" data-sort-key="objects" style="width:12%">Об'єкти<span class="sort-arrow"></span></th>
               <th style="width:9%"></th>
             </tr>
           </thead>
@@ -402,6 +406,65 @@ let allUsers = [];
 let allObjects = [];
 let supervisorAssignments = {}; // user_id -> [{object_id, object_name}]
 
+// --- Сортування таблиці користувачів по кліку на заголовок колонки ---
+let usersSortKey = null;
+let usersSortDir = 'asc'; // 'asc' | 'desc'
+
+function usersSortValue(u, key) {
+  switch (key) {
+    case 'name': return `${u.first_name || ''} ${u.last_name || ''}`.trim().toLowerCase();
+    case 'email': return (u.email || '').toLowerCase();
+    case 'phone': return (u.phone || '').toLowerCase();
+    case 'role': return (u.role || '').toLowerCase();
+    case 'status': return (u.status || '').toLowerCase();
+    case 'created_at': return u.created_at ? new Date(u.created_at).getTime() : 0;
+    case 'last_visit_at': return u.last_visit_at ? new Date(u.last_visit_at).getTime() : 0;
+    case 'client_name': return (u.client_name || '').toLowerCase();
+    case 'object_name': return (u.object_name || '').toLowerCase();
+    case 'objects':
+      return u.role === 'supervisor'
+        ? (supervisorAssignments[u.id] || []).map(a => a.object_name).join(', ').toLowerCase()
+        : '';
+    default: return '';
+  }
+}
+
+function applyUsersSort() {
+  if (!usersSortKey) return;
+  const key = usersSortKey;
+  const dir = usersSortDir === 'desc' ? -1 : 1;
+  allUsers.sort((a, b) => {
+    const va = usersSortValue(a, key);
+    const vb = usersSortValue(b, key);
+    if (va < vb) return -1 * dir;
+    if (va > vb) return 1 * dir;
+    return 0;
+  });
+}
+
+function updateUsersSortHeaderUI() {
+  document.querySelectorAll('#list-view th.sortable').forEach(th => {
+    const active = th.dataset.sortKey === usersSortKey;
+    th.classList.toggle('sort-active', active);
+    th.querySelector('.sort-arrow').textContent = active ? (usersSortDir === 'desc' ? '▼' : '▲') : '';
+  });
+}
+
+document.querySelectorAll('#list-view th.sortable').forEach(th => {
+  th.addEventListener('click', () => {
+    const key = th.dataset.sortKey;
+    if (usersSortKey === key) {
+      usersSortDir = usersSortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      usersSortKey = key;
+      usersSortDir = 'asc';
+    }
+    applyUsersSort();
+    updateUsersSortHeaderUI();
+    renderUsersTable();
+  });
+});
+
 async function loadObjectsList() {
   const res = await fetch(`${API_BASE}/ga/admin/objects`, { headers: authHeaders() });
   const data = await res.json();
@@ -430,7 +493,11 @@ async function loadUsers(search) {
   const supData = await supRes.json();
   const shopData = await shopRes.json();
   allUsers = [...(supData.users || []), ...(shopData.users || [])];
+  applyUsersSort();
+  renderUsersTable();
+}
 
+function renderUsersTable() {
   const tbody = document.getElementById('users-tbody');
   const cards = document.getElementById('users-cards');
   const empty = document.getElementById('users-empty');
