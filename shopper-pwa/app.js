@@ -439,10 +439,21 @@ const Tasks = {
       const card = document.createElement('div');
       card.className = 'card' + (isDone ? ' done' : '');
 
-      const reqRows = [];
-      t.photo_requirements.forEach(r => reqRows.push(reqRowHtml('photo', r.title, `${r.required_count} фото`)));
-      t.audio_requirements.forEach(r => reqRows.push(reqRowHtml('audio', r.title, `Мін. ${r.min_duration_sec} сек`)));
-      t.questionnaires.forEach(r => reqRows.push(reqRowHtml('quest', r.title, `${r.criteria_count} питань`)));
+      // Порядок — той самий order_index, що й у хабі (адмін задає вручну під кожне
+      // завдання). Раніше групувалось по типу (усі фото, потім усі аудіо, потім усі
+      // анкети) без жодного сортування всередині групи.
+      const orderOfReq = r => (r.order_index === null || r.order_index === undefined) ? Infinity : r.order_index;
+      const combinedReqs = [
+        ...t.photo_requirements.map(r => ({ kind: 'photo', r })),
+        ...t.audio_requirements.map(r => ({ kind: 'audio', r })),
+        ...t.questionnaires.map(r => ({ kind: 'quest', r }))
+      ].sort((a, b) => orderOfReq(a.r) - orderOfReq(b.r));
+
+      const reqRows = combinedReqs.map(({ kind, r }) => {
+        if (kind === 'photo') return reqRowHtml('photo', r.title, `${r.required_count} фото`);
+        if (kind === 'audio') return reqRowHtml('audio', r.title, `Мін. ${r.min_duration_sec} сек`);
+        return reqRowHtml('quest', r.title, `${r.criteria_count} питань`);
+      });
 
       card.innerHTML = `
         <div style="margin-bottom:${reqRows.length ? '8px' : '0'}">${reqRows.join('')}</div>
