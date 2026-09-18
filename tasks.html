@@ -104,6 +104,9 @@ td[tabindex]:focus{box-shadow:inset 0 0 0 2px var(--accent);border-radius:3px}
 .req-chip .chip-title{flex:1}
 .req-chip .chip-meta{font-size:10px;color:var(--muted)}
 .req-chip .chip-remove{font-size:12px;color:var(--muted);cursor:pointer}
+.req-chip[draggable="true"]{cursor:default}
+.req-chip .drag-handle{cursor:grab;font-size:14px}
+.req-chip.dragging{opacity:.4}
 .add-more-btn{height:26px;border:1px dashed var(--border);border-radius:5px;display:flex;align-items:center;justify-content:center;gap:5px;cursor:pointer;font-size:11px;color:var(--muted);background:transparent}
 
 .mini-form{border:1px solid var(--border);border-radius:7px;padding:10px;margin-bottom:8px;background:var(--bg2)}
@@ -405,6 +408,13 @@ let supervisorMap = {};
 let photoReqs = [];
 let audioReqs = [];
 let questionnaireReqs = [];
+// Єдиний комбінований порядок чіпів у формі створення завдання (п.7 — ручне
+// впорядкування замість вгадування за назвою секції). Кожен запис — посилання
+// на елемент одного з трьох масивів вище по стабільному _localId (не по індексу
+// в масиві — індекс «з'їжджає» при видаленні, а localId завжди вказує на той
+// самий елемент, навіть після сплайсів).
+let chipOrder = [];
+let nextChipLocalId = 1;
 
 // ============ LIST VIEW ============
 let tasksSearchTimer = null;
@@ -932,7 +942,7 @@ document.getElementById('ef-shopper-search').addEventListener('input', () => {
 });
 
 function resetTaskForm() {
-  photoReqs = []; audioReqs = []; questionnaireReqs = [];
+  photoReqs = []; audioReqs = []; questionnaireReqs = []; chipOrder = [];
   renderChips();
   document.getElementById('f-deadline').value = '';
   document.getElementById('f-shopper-search').value = '';
@@ -965,38 +975,75 @@ document.getElementById('cancel-task-btn').addEventListener('click', showListVie
 function renderChips() {
   const wrap = document.getElementById('req-chips');
   wrap.innerHTML = '';
-  const sortedPhotos = photoReqs.map((r, i) => ({ r, i })).sort((a, b) => sectionRank(a.r.section_key) - sectionRank(b.r.section_key));
-  const sortedAudios = audioReqs.map((r, i) => ({ r, i })).sort((a, b) => sectionRank(a.r.section_key) - sectionRank(b.r.section_key));
-  sortedPhotos.forEach(({ r, i }) => {
+  const icons = { photo: 'ti-camera', audio: 'ti-microphone', questionnaire: 'ti-clipboard-list' };
+  const colors = { photo: 'var(--accent)', audio: 'var(--warn-text)', questionnaire: 'var(--success)' };
+
+  chipOrder.forEach((entry, pos) => {
+    const arr = entry.kind === 'photo' ? photoReqs : entry.kind === 'audio' ? audioReqs : questionnaireReqs;
+    const r = arr.find(x => x._localId === entry.localId);
+    if (!r) return; // захист: якщо раптом розсинхронізувалось — просто пропускаємо, не падаємо
+    const meta = entry.kind === 'photo' ? `${r.required_count} фото · ${SECTION_NAMES[r.section_key] || r.section_key}`
+      : entry.kind === 'audio' ? `мін. ${r.min_duration_sec} сек · ${SECTION_NAMES[r.section_key] || r.section_key}`
+      : `${r.criteria_count} питань`;
     wrap.insertAdjacentHTML('beforeend', `
-      <div class="req-chip"><i class="ti ti-camera type-icon" style="color:var(--accent)"></i>
-        <span class="chip-title">${r.title}</span><span class="chip-meta">${r.required_count} фото · ${SECTION_NAMES[r.section_key] || r.section_key}</span>
-        <span class="chip-remove" data-kind="photo" data-idx="${i}"><i class="ti ti-x"></i></span></div>
+      <div class="req-chip" draggable="true" data-pos="${pos}">
+        <i class="ti ti-grip-vertical drag-handle"></i>
+        <i class="ti ${icons[entry.kind]} type-icon" style="color:${colors[entry.kind]}"></i>
+        <span class="chip-title">${r.title}</span><span class="chip-meta">${meta}</span>
+        <span class="chip-remove" data-kind="${entry.kind}" data-local-id="${entry.localId}"><i class="ti ti-x"></i></span>
+      </div>
     `);
   });
-  sortedAudios.forEach(({ r, i }) => {
-    wrap.insertAdjacentHTML('beforeend', `
-      <div class="req-chip"><i class="ti ti-microphone type-icon" style="color:var(--warn-text)"></i>
-        <span class="chip-title">${r.title}</span><span class="chip-meta">мін. ${r.min_duration_sec} сек · ${SECTION_NAMES[r.section_key] || r.section_key}</span>
-        <span class="chip-remove" data-kind="audio" data-idx="${i}"><i class="ti ti-x"></i></span></div>
-    `);
-  });
-  const sortedQuests = questionnaireReqs.map((r, i) => ({ r, i })).sort((a, b) => sectionRank(a.r.section_key) - sectionRank(b.r.section_key));
-  sortedQuests.forEach(({ r, i }) => {
-    wrap.insertAdjacentHTML('beforeend', `
-      <div class="req-chip"><i class="ti ti-clipboard-list type-icon" style="color:var(--success)"></i>
-        <span class="chip-title">${r.title}</span><span class="chip-meta">${r.criteria_count} питань</span>
-        <span class="chip-remove" data-kind="questionnaire" data-idx="${i}"><i class="ti ti-x"></i></span></div>
-    `);
-  });
+
   wrap.querySelectorAll('.chip-remove').forEach(el => {
     el.addEventListener('click', () => {
-      const kind = el.dataset.kind, idx = Number(el.dataset.idx);
-      if (kind === 'photo') photoReqs.splice(idx, 1);
-      if (kind === 'audio') audioReqs.splice(idx, 1);
-      if (kind === 'questionnaire') questionnaireReqs.splice(idx, 1);
+      const kind = el.dataset.kind, localId = Number(el.dataset.localId);
+      const arr = kind === 'photo' ? photoReqs : kind === 'audio' ? audioReqs : questionnaireReqs;
+      const idx = arr.findIndex(x => x._localId === localId);
+      if (idx !== -1) arr.splice(idx, 1);
+      chipOrder = chipOrder.filter(e => !(e.kind === kind && e.localId === localId));
       renderChips();
     });
+  });
+
+  attachChipDragHandlers(wrap);
+}
+
+let dragFromPos = null;
+function attachChipDragHandlers(wrap) {
+  wrap.querySelectorAll('.req-chip').forEach(chip => {
+    chip.addEventListener('dragstart', () => {
+      dragFromPos = Number(chip.dataset.pos);
+      chip.classList.add('dragging');
+    });
+    chip.addEventListener('dragend', () => {
+      chip.classList.remove('dragging');
+      dragFromPos = null;
+    });
+    chip.addEventListener('dragover', (e) => { e.preventDefault(); });
+    chip.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const toPos = Number(chip.dataset.pos);
+      if (dragFromPos === null || dragFromPos === toPos) return;
+      const [moved] = chipOrder.splice(dragFromPos, 1);
+      chipOrder.splice(toPos, 0, moved);
+      renderChips();
+    });
+  });
+}
+
+// Будує requirement_order для відправки на бекенд: {kind, ref} у порядку чіпів.
+// kind тут навмисно 'quest' (не 'questionnaire') — саме такий рядок очікує
+// Build Requirements SQL на бекенді. ref для фото/аудіо — позиція в масиві,
+// який реально відправляється (рахуємо тут же, по ходу); для анкети — questionnaire_id
+// (стабільний, позиція не потрібна).
+function buildRequirementOrder() {
+  let photoIdx = 0, audioIdx = 0;
+  return chipOrder.map(entry => {
+    if (entry.kind === 'photo') return { kind: 'photo', ref: photoIdx++ };
+    if (entry.kind === 'audio') return { kind: 'audio', ref: audioIdx++ };
+    const item = questionnaireReqs.find(q => q._localId === entry.localId);
+    return { kind: 'quest', ref: item ? item.id : null };
   });
 }
 
@@ -1023,11 +1070,14 @@ document.getElementById('add-photo-btn').addEventListener('click', () => {
   document.getElementById('mf-photo-add').addEventListener('click', () => {
     const title = document.getElementById('mf-photo-title').value.trim();
     if (!title) return;
+    const localId = nextChipLocalId++;
     photoReqs.push({
+      _localId: localId,
       title, description: document.getElementById('mf-photo-desc').value.trim(),
       required_count: Number(document.getElementById('mf-photo-count').value) || 1,
       section_key: document.getElementById('mf-photo-section').value
     });
+    chipOrder.push({ kind: 'photo', localId });
     closeMiniForm(); renderChips();
   });
 });
@@ -1053,11 +1103,14 @@ document.getElementById('add-audio-btn').addEventListener('click', () => {
   document.getElementById('mf-audio-add').addEventListener('click', () => {
     const title = document.getElementById('mf-audio-title').value.trim();
     if (!title) return;
+    const localId = nextChipLocalId++;
     audioReqs.push({
+      _localId: localId,
       title, section_key: document.getElementById('mf-audio-section').value,
       min_duration_sec: Number(document.getElementById('mf-audio-duration').value) || 30,
       instruction: document.getElementById('mf-audio-instr').value.trim()
     });
+    chipOrder.push({ kind: 'audio', localId });
     closeMiniForm(); renderChips();
   });
 });
@@ -1088,7 +1141,9 @@ document.getElementById('add-questionnaire-btn').addEventListener('click', async
     const q = list.find(x => x.id === qId);
     const critRes = await fetch(`${API_BASE}/ga/admin/criteria?questionnaire_id=${qId}`, { headers: authHeaders() });
     const critData = await critRes.json();
-    questionnaireReqs.push({ id: qId, title: q.title, criteria_count: (critData.criteria || []).length, section_key: q.section_key });
+    const localId = nextChipLocalId++;
+    questionnaireReqs.push({ _localId: localId, id: qId, title: q.title, criteria_count: (critData.criteria || []).length, section_key: q.section_key });
+    chipOrder.push({ kind: 'questionnaire', localId });
     closeMiniForm(); renderChips();
   });
 });
@@ -1121,9 +1176,10 @@ document.getElementById('save-task-btn').addEventListener('click', async () => {
       body: JSON.stringify({
         object_id: Number(objectId), shopper_id: Number(shopperId),
         deadline: new Date(deadline + 'T18:00:00').toISOString(),
-        photo_requirements: photoReqs,
-        audio_requirements: audioReqs,
-        questionnaire_ids: questionnaireReqs.map(q => q.id)
+        photo_requirements: chipOrder.filter(e => e.kind === 'photo').map(e => photoReqs.find(r => r._localId === e.localId)),
+        audio_requirements: chipOrder.filter(e => e.kind === 'audio').map(e => audioReqs.find(r => r._localId === e.localId)),
+        questionnaire_ids: questionnaireReqs.map(q => q.id),
+        requirement_order: buildRequirementOrder()
       })
     });
   } catch (err) {
