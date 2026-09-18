@@ -700,17 +700,6 @@ function showGeoError(msg, cls = 'err') {
 // ─── SCREEN: HUB (checklist for current task) ────────────
 function hubKey(kind, id) { return kind + '-' + id; }
 
-// Порядок секцій — за реальним маршрутом відвідувача кінотеатру (та сама логіка,
-// що вже стоїть в Admin для п.13): Вхід → Каса → Бар → Зал → Туалет → Вихід.
-const SECTION_NAMES = { vhid: 'Вхід', kasa: 'Каса', bar: 'Бар', zal: 'Зал', tualet: 'Туалет', vyhid: 'Вихід' };
-const SECTION_ORDER = Object.keys(SECTION_NAMES);
-const SECTION_ALIASES = { cinema_hall: 'zal' };
-function sectionRank(key) {
-  const normalized = SECTION_ALIASES[key] || key;
-  const i = SECTION_ORDER.indexOf(normalized);
-  return i === -1 ? SECTION_ORDER.length : i;
-}
-
 function renderHub() {
   const t = State.currentTask;
   document.getElementById('hub-object-name').textContent = State.currentObject.object_name;
@@ -722,14 +711,16 @@ function renderHub() {
   const guard = (fn) => blocked ? (() => {}) : fn;
   let firstPendingSeen = false;
 
-  // Раніше показувались групами (усі фото, потім усі аудіо, потім усі анкети) —
-  // без жодного логічного порядку всередині групи. Тепер все зведено в один
-  // список і відсортовано за реальним маршрутом відвідувача (п.13).
+  // Порядок — order_index, який задає Admin (вручну, під кожне завдання окремо, п.7).
+  // Раніше сортувалось вгадуванням за назвою секції ("базові 6") — не працювало для
+  // реальних анкет з довільними назвами (vhid_ccv, kasa_cck тощо). Записи без
+  // order_index (створені до цієї зміни) лишаються в кінці, у стабільному порядку.
+  const orderOf = r => (r.order_index === null || r.order_index === undefined) ? Infinity : r.order_index;
   const combined = [
     ...t.photo_requirements.map(r => ({ kind: 'photo', r })),
     ...t.audio_requirements.map(r => ({ kind: 'audio', r })),
     ...t.questionnaires.map(r => ({ kind: 'quest', r }))
-  ].sort((a, b) => sectionRank(a.r.section_key) - sectionRank(b.r.section_key));
+  ].sort((a, b) => orderOf(a.r) - orderOf(b.r));
 
   combined.forEach(({ kind, r }) => {
     let key, sub, onOpen;
