@@ -647,11 +647,12 @@ async function reloadEditView() {
     ? ''
     : "Об'єкт і покупця можна змінити лише поки завдання в статусі «Призначено» — зараз доступний лише дедлайн.";
 
+  const orderOf = r => (r.order_index === null || r.order_index === undefined) ? Infinity : r.order_index;
   editChipOrder = [
-    ...(data.photo_requirements || []).map(r => ({ kind: 'photo', id: r.id, title: r.title, meta: `${r.required_count} фото` })),
-    ...(data.audio_requirements || []).map(r => ({ kind: 'audio', id: r.id, title: r.title, meta: `мін. ${r.min_duration_sec} сек` })),
-    ...(data.questionnaires || []).map(r => ({ kind: 'questionnaire', id: r.id, title: r.title, meta: SECTION_NAMES[r.section_key] || r.section_key }))
-  ];
+    ...(data.photo_requirements || []).map(r => ({ kind: 'photo', id: r.id, title: r.title, meta: `${r.required_count} фото`, order_index: r.order_index })),
+    ...(data.audio_requirements || []).map(r => ({ kind: 'audio', id: r.id, title: r.title, meta: `мін. ${r.min_duration_sec} сек`, order_index: r.order_index })),
+    ...(data.questionnaires || []).map(r => ({ kind: 'questionnaire', id: r.id, title: r.title, meta: SECTION_NAMES[r.section_key] || r.section_key, order_index: r.order_index }))
+  ].sort((a, b) => orderOf(a) - orderOf(b));
   editOrderDirty = false;
   document.getElementById('edit-save-order-btn').style.display = 'none';
   renderEditChips();
@@ -1397,6 +1398,6 @@ document.getElementById('logout-btn').addEventListener('click', () => {
 
 init();
 </script>
-<div style="position:fixed;bottom:6px;right:10px;font-size:10px;color:var(--muted2);z-index:9999;pointer-events:none">v2026-09-18-drag2</div>
+<div style="position:fixed;bottom:6px;right:10px;font-size:10px;color:var(--muted2);z-index:9999;pointer-events:none">v2026-09-18-drag3</div>
 </body>
 </html>
