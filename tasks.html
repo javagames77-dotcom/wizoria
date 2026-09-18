@@ -773,13 +773,27 @@ document.getElementById('save-as-template-btn').addEventListener('click', async 
   const name = (prompt("Назва шаблону (наприклад: «Стандартна перевірка кінотеатру»)") || '').trim();
   if (!name) return;
   try {
+    // Порядок береться саме з того, що зараз показано на екрані (editChipOrder,
+    // враховує перетягування), а не з сирої відповіді сервера, згрупованої по типу —
+    // інакше шаблон завжди зберігав би "фото, потім аудіо, потім анкети" незалежно
+    // від реального порядку (це і викликало скидання порядку при "Із шаблону").
+    const orderedPhotos = editChipOrder.filter(e => e.kind === 'photo').map(e => photos.find(p => p.id === e.id)).filter(Boolean);
+    const orderedAudios = editChipOrder.filter(e => e.kind === 'audio').map(e => audios.find(a => a.id === e.id)).filter(Boolean);
+    let photoIdx = 0, audioIdx = 0;
+    const requirementOrder = editChipOrder.map(e => {
+      if (e.kind === 'photo') return { kind: 'photo', ref: photoIdx++ };
+      if (e.kind === 'audio') return { kind: 'audio', ref: audioIdx++ };
+      const q = quests.find(x => x.id === e.id);
+      return { kind: 'quest', ref: q ? q.questionnaire_id : null };
+    });
     const res = await fetch(`${API_BASE}/ga/admin/tasks/templates`, {
       method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name,
-        photo_requirements: photos.map(p => ({ title: p.title, description: p.description, required_count: p.required_count, section_key: p.section_key })),
-        audio_requirements: audios.map(a => ({ title: a.title, instruction: a.instruction, section_key: a.section_key, min_duration_sec: a.min_duration_sec })),
-        questionnaire_ids: quests.map(q => q.questionnaire_id)
+        photo_requirements: orderedPhotos.map(p => ({ title: p.title, description: p.description, required_count: p.required_count, section_key: p.section_key })),
+        audio_requirements: orderedAudios.map(a => ({ title: a.title, instruction: a.instruction, section_key: a.section_key, min_duration_sec: a.min_duration_sec })),
+        questionnaire_ids: quests.map(q => q.questionnaire_id),
+        requirement_order: requirementOrder
       })
     });
     const result = await res.json();
@@ -1398,6 +1412,6 @@ document.getElementById('logout-btn').addEventListener('click', () => {
 
 init();
 </script>
-<div style="position:fixed;bottom:6px;right:10px;font-size:10px;color:var(--muted2);z-index:9999;pointer-events:none">v2026-09-18-drag3</div>
+<div style="position:fixed;bottom:6px;right:10px;font-size:10px;color:var(--muted2);z-index:9999;pointer-events:none">v2026-09-18-drag4</div>
 </body>
 </html>
