@@ -322,6 +322,7 @@ td[tabindex]:focus{box-shadow:inset 0 0 0 2px var(--accent);border-radius:3px}
         </div>
         <div id="edit-mini-form-slot"></div>
         <div id="edit-req-chips"></div>
+        <button class="btn-primary btn-small" id="edit-save-order-btn" style="display:none;margin-top:6px"><i class="ti ti-arrows-sort"></i>Зберегти новий порядок</button>
       </div>
     </div>
   </div>
@@ -593,6 +594,11 @@ document.getElementById('tasks-tbody').addEventListener('keydown', (e) => {
 
 let currentEditTaskId = null;
 let currentEditTaskData = null;
+// Порядок чіпів на екрані редагування. На відміну від форми створення, тут id —
+// справжні id рядків у БД (не localId) — вимоги вже існують, просто змінюємо
+// порядок. editOrderDirty — чи є непотрібні незбережені зміни порядку.
+let editChipOrder = [];
+let editOrderDirty = false;
 const STATUS_LABELS = { assigned: 'Призначено', in_progress: 'В процесі', submitted: 'Очікує', approved: 'Здано', rejected: 'Відхилено', needs_revision: 'На доопрацюванні' };
 
 async function openTaskDetail(taskId) {
@@ -641,34 +647,78 @@ async function reloadEditView() {
     ? ''
     : "Об'єкт і покупця можна змінити лише поки завдання в статусі «Призначено» — зараз доступний лише дедлайн.";
 
+  editChipOrder = [
+    ...(data.photo_requirements || []).map(r => ({ kind: 'photo', id: r.id, title: r.title, meta: `${r.required_count} фото` })),
+    ...(data.audio_requirements || []).map(r => ({ kind: 'audio', id: r.id, title: r.title, meta: `мін. ${r.min_duration_sec} сек` })),
+    ...(data.questionnaires || []).map(r => ({ kind: 'questionnaire', id: r.id, title: r.title, meta: SECTION_NAMES[r.section_key] || r.section_key }))
+  ];
+  editOrderDirty = false;
+  document.getElementById('edit-save-order-btn').style.display = 'none';
+  renderEditChips();
+}
+
+function renderEditChips() {
   const wrap = document.getElementById('edit-req-chips');
   wrap.innerHTML = '';
-  (data.photo_requirements || []).forEach(r => {
+  const icons = { photo: 'ti-camera', audio: 'ti-microphone', questionnaire: 'ti-clipboard-list' };
+  const colors = { photo: 'var(--accent)', audio: 'var(--warn-text)', questionnaire: 'var(--success)' };
+
+  editChipOrder.forEach((r, pos) => {
     wrap.insertAdjacentHTML('beforeend', `
-      <div class="req-chip"><i class="ti ti-camera type-icon" style="color:var(--accent)"></i>
-        <span class="chip-title">${r.title}</span><span class="chip-meta">${r.required_count} фото</span>
-        <span class="chip-remove" data-kind="photo" data-id="${r.id}"><i class="ti ti-x"></i></span></div>
-    `);
-  });
-  (data.audio_requirements || []).forEach(r => {
-    wrap.insertAdjacentHTML('beforeend', `
-      <div class="req-chip"><i class="ti ti-microphone type-icon" style="color:var(--warn-text)"></i>
-        <span class="chip-title">${r.title}</span><span class="chip-meta">мін. ${r.min_duration_sec} сек</span>
-        <span class="chip-remove" data-kind="audio" data-id="${r.id}"><i class="ti ti-x"></i></span></div>
-    `);
-  });
-  (data.questionnaires || []).forEach(r => {
-    wrap.insertAdjacentHTML('beforeend', `
-      <div class="req-chip"><i class="ti ti-clipboard-list type-icon" style="color:var(--success)"></i>
-        <span class="chip-title">${r.title}</span><span class="chip-meta">${SECTION_NAMES[r.section_key] || r.section_key}</span>
-        <span class="chip-remove" data-kind="questionnaire" data-id="${r.id}"><i class="ti ti-x"></i></span></div>
+      <div class="req-chip" draggable="true" data-pos="${pos}">
+        <i class="ti ti-grip-vertical drag-handle"></i>
+        <i class="ti ${icons[r.kind]} type-icon" style="color:${colors[r.kind]}"></i>
+        <span class="chip-title">${r.title}</span><span class="chip-meta">${r.meta}</span>
+        <span class="chip-remove" data-kind="${r.kind}" data-id="${r.id}"><i class="ti ti-x"></i></span></div>
     `);
   });
 
   wrap.querySelectorAll('.chip-remove').forEach(el => {
     el.addEventListener('click', () => removeExistingRequirement(el.dataset.kind, Number(el.dataset.id)));
   });
+
+  let dragFromPos = null;
+  wrap.querySelectorAll('.req-chip').forEach(chip => {
+    chip.addEventListener('dragstart', () => { dragFromPos = Number(chip.dataset.pos); chip.classList.add('dragging'); });
+    chip.addEventListener('dragend', () => { chip.classList.remove('dragging'); dragFromPos = null; });
+    chip.addEventListener('dragover', (e) => { e.preventDefault(); });
+    chip.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const toPos = Number(chip.dataset.pos);
+      if (dragFromPos === null || dragFromPos === toPos) return;
+      const [moved] = editChipOrder.splice(dragFromPos, 1);
+      editChipOrder.splice(toPos, 0, moved);
+      editOrderDirty = true;
+      document.getElementById('edit-save-order-btn').style.display = 'inline-flex';
+      renderEditChips();
+    });
+  });
 }
+
+document.getElementById('edit-save-order-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('edit-save-order-btn');
+  btn.disabled = true; btn.textContent = 'Зберігаємо…';
+  try {
+    const order = editChipOrder.map((r, i) => ({
+      kind: r.kind === 'questionnaire' ? 'quest' : r.kind,
+      id: r.id,
+      order_index: i
+    }));
+    const res = await fetch(`${API_BASE}/ga/admin/tasks/requirements/reorder`, {
+      method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ task_id: currentEditTaskId, order })
+    });
+    const data = await res.json();
+    if (!data.success) { await showAlertDialog(data.error || 'Помилка', 'Помилка'); }
+    await reloadEditView();
+  } catch (err) {
+    await showAlertDialog("Немає з'єднання з сервером", 'Помилка');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ti ti-arrows-sort"></i>Зберегти новий порядок';
+  }
+});
+
 
 async function removeExistingRequirement(kind, requirementId) {
   const ok = await showModal({
@@ -1347,6 +1397,6 @@ document.getElementById('logout-btn').addEventListener('click', () => {
 
 init();
 </script>
-<div style="position:fixed;bottom:6px;right:10px;font-size:10px;color:var(--muted2);z-index:9999;pointer-events:none">v2026-09-18-drag</div>
+<div style="position:fixed;bottom:6px;right:10px;font-size:10px;color:var(--muted2);z-index:9999;pointer-events:none">v2026-09-18-drag2</div>
 </body>
 </html>
