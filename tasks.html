@@ -376,6 +376,11 @@ function showAlertDialog(message, title = 'Повідомлення') {
 let SECTION_NAMES = { vhid: 'Вхід', kasa: 'Каса', bar: 'Бар', zal: 'Зал', tualet: 'Туалет', vyhid: 'Вихід' };
 const SECTION_ORDER = Object.keys(SECTION_NAMES);
 const SECTION_ALIASES = { cinema_hall: 'zal' }; // деякі анкети використовують довільний ключ замість стандартного 'zal'
+// Список для випадаючого списку "Секція" у формах Фото/Аудіо — на відміну від
+// SECTION_NAMES (лише для показу назви), тут МАЄ бути точно те саме, що й у
+// списку "Анкета": лише реальні section_key з бази, без старих 6 базових значень
+// маршруту (їх як реальних анкет уже не існує, окрім випадкового збігу "bar").
+let REAL_SECTION_KEYS = [];
 function sectionRank(key) {
   const normalized = SECTION_ALIASES[key] || key;
   const i = SECTION_ORDER.indexOf(normalized);
@@ -398,6 +403,9 @@ async function loadSectionsFromQuestionnaires() {
       // виглядом уже наявної "Зал" — інакше вибрати саме "Кінозал" неможливо,
       // і фото/аудіо ніколи не зіллється з реальною анкетою (баг, знайдений клієнтом).
       if (!SECTION_NAMES[q.section_key]) SECTION_NAMES[q.section_key] = q.title;
+      if (!REAL_SECTION_KEYS.some(s => s.key === q.section_key)) {
+        REAL_SECTION_KEYS.push({ key: q.section_key, name: q.title });
+      }
     });
   } catch (e) {
     // не критично — просто лишаться базові 6 + сирі ключі як фолбек, як і раніше
@@ -832,7 +840,7 @@ document.getElementById('ef-save-btn').addEventListener('click', async () => {
 });
 
 document.getElementById('edit-add-photo-btn').addEventListener('click', () => {
-  const emfPhotoOptions = Object.entries(SECTION_NAMES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+  const emfPhotoOptions = REAL_SECTION_KEYS.map(({key, name}) => `<option value="${key}">${name}</option>`).join('');
   document.getElementById('edit-mini-form-slot').innerHTML = `
     <div class="mini-form">
       <div class="form-row">
@@ -861,7 +869,7 @@ document.getElementById('edit-add-photo-btn').addEventListener('click', () => {
 });
 
 document.getElementById('edit-add-audio-btn').addEventListener('click', () => {
-  const options = Object.entries(SECTION_NAMES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+  const options = REAL_SECTION_KEYS.map(({key, name}) => `<option value="${key}">${name}</option>`).join('');
   document.getElementById('edit-mini-form-slot').innerHTML = `
     <div class="mini-form">
       <div class="form-row">
@@ -1115,7 +1123,7 @@ function buildRequirementOrder() {
 function closeMiniForm() { document.getElementById('mini-form-slot').innerHTML = ''; }
 
 document.getElementById('add-photo-btn').addEventListener('click', () => {
-  const mfPhotoOptions = Object.entries(SECTION_NAMES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+  const mfPhotoOptions = REAL_SECTION_KEYS.map(({key, name}) => `<option value="${key}">${name}</option>`).join('');
   document.getElementById('mini-form-slot').innerHTML = `
     <div class="mini-form">
       <div class="form-row">
@@ -1148,7 +1156,7 @@ document.getElementById('add-photo-btn').addEventListener('click', () => {
 });
 
 document.getElementById('add-audio-btn').addEventListener('click', () => {
-  const options = Object.entries(SECTION_NAMES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+  const options = REAL_SECTION_KEYS.map(({key, name}) => `<option value="${key}">${name}</option>`).join('');
   document.getElementById('mini-form-slot').innerHTML = `
     <div class="mini-form">
       <div class="form-row">
@@ -1412,6 +1420,6 @@ document.getElementById('logout-btn').addEventListener('click', () => {
 
 init();
 </script>
-<div style="position:fixed;bottom:6px;right:10px;font-size:10px;color:var(--muted2);z-index:9999;pointer-events:none">v2026-09-18-drag4</div>
+<div style="position:fixed;bottom:6px;right:10px;font-size:10px;color:var(--muted2);z-index:9999;pointer-events:none">v2026-09-21-sections</div>
 </body>
 </html>
